@@ -22,6 +22,7 @@
     <OutputPath>$(BaseOutputPath)setup\</OutputPath>
     <X86BinPath>$(BaseOutputPath)X86\$(OS)\$(Configuration)\Output\</X86BinPath>
     <X64BinPath>$(BaseOutputPath)X64\$(OS)\$(Configuration)\Output\</X64BinPath>
+    <FacadesDir>$(OutputPath)Facades\net46\</FacadesDir>
   </PropertyGroup>
 
   <!-- Needed for the MicroBuild signing plugin -->
@@ -41,8 +42,33 @@
       <!-- Variables added here will be usable in the swr file.  This is a semi colon delimited
            list of name=value items.  Use $(name) in the swr file to reference the variable.
       -->
-      <PackagePreprocessorDefinitions>$(PackagePreprocessorDefinitions);X86BinPath=$(X86BinPath);X64BinPath=$(X64BinPath);SourceDir=$(SourceDir);Version=$(BuildVersion)</PackagePreprocessorDefinitions>
+      <PackagePreprocessorDefinitions>$(PackagePreprocessorDefinitions);X86BinPath=$(X86BinPath);X64BinPath=$(X64BinPath);SourceDir=$(SourceDir);Version=$(BuildVersion);FacadesDir=$(FacadesDir)</PackagePreprocessorDefinitions>
     </PropertyGroup>
+  </Target>
+
+  <Target Name="PublishFacades"
+          BeforeTargets="SetVsixProperties"
+          Inputs="$(MSBuildThisFileDirectory)Facades\project.json;$(MSBuildThisFileFullPath)"
+          Outputs="$(FacadesDir)success">
+    
+    <MakeDir Directories="$(FacadesDir)" />
+    
+    <Delete Files="$(FacadesDir)*" />
+    
+    <Exec Command="$(DotnetToolCommand) restore $(MSBuildThisFileDirectory)Facades\project.json" />
+    <!-- Only publish net46 because that's all that is included with Visual Studio -->
+    <Exec Command="$(DotnetToolCommand) publish $(MSBuildThisFileDirectory)Facades\project.json --framework net46 --runtime win --output &quot;$(FacadesDir.TrimEnd('\\'))&quot;" />
+
+    <ItemGroup>
+      <PublishedFacades Include="$(FacadesDir)*" />
+    </ItemGroup>
+    
+    <WriteLinesToFile File="$(FacadesDir)success" Lines="@(PublishedFacades)" Overwrite="true" />
+
+    <ItemGroup>
+      <FileWrites Include="$(FacadesDir)success" />
+      <FileWrites Include="@(PublishedFacades)" />
+    </ItemGroup>
   </Target>
 
   <!-- MicroBuild plugin fails if GetNativeManifest is not found for some reason -->
