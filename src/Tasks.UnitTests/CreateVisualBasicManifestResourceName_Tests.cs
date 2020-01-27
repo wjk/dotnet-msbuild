@@ -8,12 +8,22 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Shared;
 using Microsoft.Build.Tasks;
 using Microsoft.Build.Utilities;
+using Shouldly;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Microsoft.Build.UnitTests
 {
     sealed public class CreateVisualBasicManifestResourceName_Tests
     {
+
+        private readonly ITestOutputHelper _testOutput;
+
+        public CreateVisualBasicManifestResourceName_Tests(ITestOutputHelper output)
+        {
+            _testOutput = output;
+        }
+
         /// <summary>
         /// Test the basic functionality.
         /// </summary>
@@ -347,8 +357,49 @@ End Namespace
 
             ITaskItem[] resourceNames = t.ManifestResourceNames;
 
-            Assert.Equal(1, resourceNames.Length);
+            Assert.Single(resourceNames);
             Assert.Equal(@"CustomToolTest.SR1", resourceNames[0].ItemSpec);
+        }
+
+        /// <summary>
+        /// If we have a resource file that has a culture within it's name (resourceFile.de.cs), find it by convention.
+        /// </summary>
+        [Fact]
+        public void CulturedResourceFileFindByConvention()
+        {
+            using (var env = TestEnvironment.Create(_testOutput))
+            {
+                var csFile = env.CreateFile("SR1.vb", @"
+Namespace MyStuff
+    Class Class2
+    End Class
+End Namespace");
+                var resXFile = env.CreateFile("SR1.de.resx", "");
+
+                ITaskItem i = new TaskItem(resXFile.Path);
+
+                i.SetMetadata("BuildAction", "EmbeddedResource");
+
+                // this data is set automatically through the AssignCulture task, so we manually set it here
+                i.SetMetadata("WithCulture", "true");
+                i.SetMetadata("Culture", "de");
+
+                env.SetCurrentDirectory(Path.GetDirectoryName(resXFile.Path));
+
+                CreateVisualBasicManifestResourceName t = new CreateVisualBasicManifestResourceName
+                {
+                    BuildEngine = new MockEngine(_testOutput),
+                    UseDependentUponConvention = true,
+                    ResourceFiles = new ITaskItem[] { i },
+                };
+
+                t.Execute().ShouldBeTrue("Expected the task to succeed");
+
+                t.ManifestResourceNames.ShouldHaveSingleItem();
+
+                // CreateManifestNameImpl appends culture to the end of the convention
+                t.ManifestResourceNames[0].ItemSpec.ShouldBe("MyStuff.Class2.de", "Expected Namespace.Class.Culture");
+            }
         }
 
         /// <summary>
@@ -452,11 +503,9 @@ End Namespace
                     c.Log
                 );
 
-            Assert.True(
-                m.Log.Contains
-                (
-                    String.Format(AssemblyResources.GetString("CreateManifestResourceName.DefinitionFoundWithinConditionalDirective"), "MyForm.vb", "MyForm.resx")
-                )
+            Assert.Contains(
+                String.Format(AssemblyResources.GetString("CreateManifestResourceName.DefinitionFoundWithinConditionalDirective"), "MyForm.vb", "MyForm.resx"),
+                m.Log
             );
         }
 
@@ -480,7 +529,7 @@ End Namespace
 
             ITaskItem[] resourceFiles = t.ResourceFilesWithManifestResourceNames;
 
-            Assert.Equal(1, resourceFiles.Length);
+            Assert.Single(resourceFiles);
             Assert.Equal(@"strings.resx", resourceFiles[0].ItemSpec);
             Assert.Equal(@"ResourceRoot.strings", resourceFiles[0].GetMetadata("ManifestResourceName"));
         }
@@ -506,7 +555,7 @@ End Namespace
 
             ITaskItem[] resourceFiles = t.ResourceFilesWithManifestResourceNames;
 
-            Assert.Equal(1, resourceFiles.Length);
+            Assert.Single(resourceFiles);
             Assert.Equal(@"pic.bmp", resourceFiles[0].ItemSpec);
             Assert.Equal(@"ResourceRoot.pic.bmp", resourceFiles[0].GetMetadata("LogicalName"));
         }
@@ -532,7 +581,7 @@ End Namespace
 
             ITaskItem[] resourceFiles = t.ResourceFilesWithManifestResourceNames;
 
-            Assert.Equal(1, resourceFiles.Length);
+            Assert.Single(resourceFiles);
             Assert.Equal(@"pic.bmp", resourceFiles[0].ItemSpec);
             Assert.Equal(@"foo", resourceFiles[0].GetMetadata("LogicalName"));
         }
@@ -557,7 +606,7 @@ End Namespace
 
             ITaskItem[] resourceFiles = t.ResourceFilesWithManifestResourceNames;
 
-            Assert.Equal(1, resourceFiles.Length);
+            Assert.Single(resourceFiles);
             Assert.Equal(@"strings.resx", resourceFiles[0].ItemSpec);
             Assert.Equal(String.Empty, resourceFiles[0].GetMetadata("LogicalName"));
         }

@@ -100,6 +100,11 @@ namespace Microsoft.Build.Utilities
         Version472 = 13,
 
         /// <summary>
+        /// version 4.8
+        /// </summary>
+        Version48 = 14,
+
+        /// <summary>
         /// The latest version available at the time of major release. This
         /// value should not be updated in minor releases as it could be a
         /// breaking change. Use 'Latest' if possible, but note the
@@ -252,7 +257,7 @@ namespace Microsoft.Build.Utilities
         /// Character used to separate search paths specified for MSBuildExtensionsPath* in
         /// the config file
         /// </summary>
-        private static char _separatorForFallbackSearchPaths = ';';
+        private static readonly char[] _separatorForFallbackSearchPaths = MSBuildConstants.SemicolonChar;
 
         private const string retailConfigurationName = "Retail";
         private const string neutralArchitectureName = "Neutral";
@@ -264,7 +269,7 @@ namespace Microsoft.Build.Utilities
         private const string uapDirectoryName = "Windows Kits";
         private const string uapRegistryName = "Windows";
         private const int uapVersion = 10;
-        private static readonly char[] s_diskRootSplitChars = { ';' };
+        private static readonly char[] s_diskRootSplitChars = MSBuildConstants.SemicolonChar;
 
         /// <summary>
         /// Delegate to a method which takes a version enumeration and return a string path
@@ -1477,8 +1482,8 @@ namespace Microsoft.Build.Utilities
         {
             if (!string.IsNullOrEmpty(possibleRoots))
             {
-                var roots = possibleRoots.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                var files = relativeFilePaths.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                var roots = possibleRoots.Split(MSBuildConstants.SemicolonChar, StringSplitOptions.RemoveEmptyEntries);
+                var files = relativeFilePaths.Split(MSBuildConstants.SemicolonChar, StringSplitOptions.RemoveEmptyEntries);
 
                 bool allFilesFound;
                 foreach (var root in roots)
@@ -1820,7 +1825,7 @@ namespace Microsoft.Build.Utilities
                     {
                         targetedArchitecture = SharedDotNetFrameworkArchitecture.Bitness32;
                     }
-                    else if (platformTarget.Equals("x64", StringComparison.OrdinalIgnoreCase) || platformTarget.Equals("Itanium", StringComparison.OrdinalIgnoreCase))
+                    else if (platformTarget.Equals("x64", StringComparison.OrdinalIgnoreCase) || platformTarget.Equals("Itanium", StringComparison.OrdinalIgnoreCase) || platformTarget.Equals("arm64", StringComparison.OrdinalIgnoreCase))
                     {
                         targetedArchitecture = SharedDotNetFrameworkArchitecture.Bitness64;
                     }
@@ -2038,8 +2043,10 @@ namespace Microsoft.Build.Utilities
                     return FrameworkLocationHelper.dotNetFrameworkVersion471;
 
                 case TargetDotNetFrameworkVersion.Version472:
-                case TargetDotNetFrameworkVersion.Latest: // Latest is a special value to indicate the highest version we know about.
                     return FrameworkLocationHelper.dotNetFrameworkVersion472;
+                case TargetDotNetFrameworkVersion.Version48:
+                case TargetDotNetFrameworkVersion.Latest: // Latest is a special value to indicate the highest version we know about.
+                    return FrameworkLocationHelper.dotNetFrameworkVersion48;
 
                 default:
                     ErrorUtilities.ThrowArgument("ToolLocationHelper.UnsupportedFrameworkVersion", version);
@@ -2181,7 +2188,7 @@ namespace Microsoft.Build.Utilities
 
             if (!string.IsNullOrEmpty(targetFrameworkFallbackSearchPaths))
             {
-                foreach (string rootPath in targetFrameworkFallbackSearchPaths.Split(new[]{_separatorForFallbackSearchPaths}, StringSplitOptions.RemoveEmptyEntries))
+                foreach (string rootPath in targetFrameworkFallbackSearchPaths.Split(_separatorForFallbackSearchPaths, StringSplitOptions.RemoveEmptyEntries))
                 {
                     pathsList = GetPathToReferenceAssemblies(rootPath, frameworkName);
                     if (pathsList?.Count > 0)

@@ -2,14 +2,18 @@
 
   <PropertyGroup>
     <ThirdPartyNotice Condition=" '$(ThirdPartyNotice)' == '' ">$(RepoRoot)THIRDPARTYNOTICES.txt</ThirdPartyNotice>
+    <AssemblyTitle>$(TargetFileName)</AssemblyTitle>
+    <Description Condition="'$(Description)' == ''">$(TargetFileName)</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="$(ThirdPartyNotice)" Pack="true" PackagePath="notices" Visible="false" Condition=" '$(IsPackable)' == 'true' " />
+    <None Include="$(RepoRoot)branding\MSBuild-NuGet-Icon.png" Pack="true" PackagePath="\" Visible="false" Condition=" '$(IsPackable)' == 'true' " />
   </ItemGroup>
 
   <PropertyGroup>
-    <CentralPackagesFile>$(MSBuildThisFileDirectory)build/Packages.props</CentralPackagesFile>
+    <CentralPackagesFile>$(MSBuildThisFileDirectory)eng/Packages.props</CentralPackagesFile>
   </PropertyGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.Build.CentralPackageVersions" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.DotNet.Arcade.Sdk" />
 </Project>

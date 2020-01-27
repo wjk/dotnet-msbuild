@@ -10,9 +10,6 @@ using System.Reflection;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Shared;
 using TaskItem = Microsoft.Build.Execution.ProjectItemInstance.TaskItem;
-#if FEATURE_APPDOMAIN
-using TaskEngineAssemblyResolver = Microsoft.Build.BackEnd.Logging.TaskEngineAssemblyResolver;
-#endif
 
 namespace Microsoft.Build.BackEnd
 {
@@ -35,7 +32,7 @@ namespace Microsoft.Build.BackEnd
         /// <summary>
         /// Constructor for deserialization
         /// </summary>
-        private LogMessagePacket(INodePacketTranslator translator)
+        private LogMessagePacket(ITranslator translator)
             : base(translator)
         {
         }
@@ -43,7 +40,7 @@ namespace Microsoft.Build.BackEnd
         /// <summary>
         /// Factory for serialization
         /// </summary>
-        static internal INodePacket FactoryForDeserialization(INodePacketTranslator translator)
+        static internal INodePacket FactoryForDeserialization(ITranslator translator)
         {
             return new LogMessagePacket(translator);
         }
@@ -51,7 +48,7 @@ namespace Microsoft.Build.BackEnd
         /// <summary>
         /// Translate the TargetOutputs for the target finished event.
         /// </summary>
-        private static void TranslateTargetFinishedEvent(INodePacketTranslator translator, TargetFinishedEventArgs finishedEvent)
+        private static void TranslateTargetFinishedEvent(ITranslator translator, TargetFinishedEventArgs finishedEvent)
         {
             List<TaskItem> targetOutputs = null;
             if (translator.Mode == TranslationDirection.WriteToStream)

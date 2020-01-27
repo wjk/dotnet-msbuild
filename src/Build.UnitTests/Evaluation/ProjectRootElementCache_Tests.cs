@@ -1,12 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Collections.Generic;
-using Microsoft.Build.Execution;
 using Microsoft.Build.Evaluation;
-using Microsoft.Build.Collections;
-using Microsoft.Build.Framework;
-using System.Collections;
 using System;
 using System.IO;
 
@@ -127,12 +122,12 @@ namespace Microsoft.Build.UnitTests.OM.Evaluation
                 cache.AddEntry(xml0);
 
                 ProjectRootElement xml1 = cache.TryGet(path);
-                Assert.Equal(true, Object.ReferenceEquals(xml0, xml1));
+                Assert.True(Object.ReferenceEquals(xml0, xml1));
 
                 File.SetLastWriteTime(path, DateTime.Now + new TimeSpan(1, 0, 0));
 
                 ProjectRootElement xml2 = cache.TryGet(path);
-                Assert.Equal(false, Object.ReferenceEquals(xml0, xml2));
+                Assert.False(Object.ReferenceEquals(xml0, xml2));
             }
             finally
             {
@@ -161,12 +156,12 @@ namespace Microsoft.Build.UnitTests.OM.Evaluation
                 cache.AddEntry(xml0);
 
                 ProjectRootElement xml1 = cache.TryGet(path);
-                Assert.Equal(true, Object.ReferenceEquals(xml0, xml1));
+                Assert.True(Object.ReferenceEquals(xml0, xml1));
 
                 File.SetLastWriteTime(path, DateTime.Now + new TimeSpan(1, 0, 0));
 
                 ProjectRootElement xml2 = cache.TryGet(path);
-                Assert.Equal(true, Object.ReferenceEquals(xml0, xml2));
+                Assert.True(Object.ReferenceEquals(xml0, xml2));
             }
             finally
             {

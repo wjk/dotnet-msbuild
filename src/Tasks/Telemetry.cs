@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.Build.Framework;
+using Microsoft.Build.Shared;
 using System;
 using System.Collections.Generic;
 
@@ -32,9 +33,9 @@ namespace Microsoft.Build.Tasks
 
             if (!String.IsNullOrEmpty(EventData))
             {
-                foreach (string pair in EventData.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries))
+                foreach (string pair in EventData.Split(MSBuildConstants.SemicolonChar, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var item = pair.Split(new[] {'='}, 2, StringSplitOptions.RemoveEmptyEntries);
+                    var item = pair.Split(MSBuildConstants.EqualsChar, 2, StringSplitOptions.RemoveEmptyEntries);
 
                     if (item.Length != 2)
                     {

@@ -12,13 +12,17 @@ using Microsoft.Build.Shared;
 using Microsoft.Build.Utilities;
 
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Microsoft.Build.UnitTests
 {
     public sealed class MSBuildTask_Tests : IDisposable
     {
-        public MSBuildTask_Tests()
+        private readonly ITestOutputHelper _testOutput;
+
+        public MSBuildTask_Tests(ITestOutputHelper testOutput)
         {
+            _testOutput = testOutput;
             ProjectCollection.GlobalProjectCollection.UnloadAllProjects();
         }
 
@@ -32,6 +36,7 @@ namespace Microsoft.Build.UnitTests
         /// throw a path too long exception
         /// </summary>
         [Fact]
+        [ActiveIssue("https://github.com/Microsoft/msbuild/issues/4247")]
         public void ProjectItemSpecTooLong()
         {
             string currentDirectory = Directory.GetCurrentDirectory();
@@ -183,7 +188,7 @@ namespace Microsoft.Build.UnitTests
             Project project = ObjectModelHelpers.CreateInMemoryProject(projectContents, logger);
 
             bool success = project.Build();
-            Assert.True(success); // "Build failed.  See Standard Out tab for details"
+            Assert.True(success); // "Build failed.  See test output (Attachments in Azure Pipelines) for details"
         }
 
         /// <summary>
@@ -202,9 +207,10 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            MockLogger logger = ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"SkipNonexistentProjectsMain.csproj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"SkipNonexistentProjectsMain.csproj", logger);
             string error = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFound"), "this_project_does_not_exist.csproj");
-            Assert.True(logger.FullLog.Contains(error));
+            Assert.Contains(error, logger.FullLog);
         }
 
         /// <summary>
@@ -223,11 +229,12 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            MockLogger logger = ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"SkipNonexistentProjectsMain.csproj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"SkipNonexistentProjectsMain.csproj", logger);
             string error = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFound"), "this_project_does_not_exist.csproj");
             Assert.Equal(0, logger.WarningCount);
             Assert.Equal(1, logger.ErrorCount);
-            Assert.True(logger.FullLog.Contains(error));
+            Assert.Contains(error, logger.FullLog);
         }
 
         /// <summary>
@@ -255,15 +262,16 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            MockLogger logger = ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"SkipNonexistentProjectsMain.csproj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"SkipNonexistentProjectsMain.csproj", logger);
 
             logger.AssertLogContains("Hello from foo.csproj");
             string message = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFoundMessage"), "this_project_does_not_exist.csproj");
             string error = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFound"), "this_project_does_not_exist.csproj");
             Assert.Equal(0, logger.WarningCount);
             Assert.Equal(0, logger.ErrorCount);
-            Assert.True(logger.FullLog.Contains(message)); // for the missing project
-            Assert.False(logger.FullLog.Contains(error));
+            Assert.Contains(message, logger.FullLog); // for the missing project
+            Assert.DoesNotContain(error, logger.FullLog);
         }
 
         /// <summary>
@@ -292,15 +300,16 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            MockLogger logger = ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"SkipNonexistentProjectsMain.csproj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"SkipNonexistentProjectsMain.csproj", logger);
 
             logger.AssertLogContains("Hello from foo.csproj");
             string message = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFoundMessage"), "this_project_does_not_exist.csproj");
             string error = String.Format(AssemblyResources.GetString("MSBuild.ProjectFileNotFound"), "this_project_does_not_exist.csproj");
             Assert.Equal(0, logger.WarningCount);
             Assert.Equal(0, logger.ErrorCount);
-            Assert.True(logger.FullLog.Contains(message)); // for the missing project
-            Assert.False(logger.FullLog.Contains(error));
+            Assert.Contains(message, logger.FullLog); // for the missing project
+            Assert.DoesNotContain(error, logger.FullLog);
         }
 
         [Fact]
@@ -335,13 +344,14 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            MockLogger logger = ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"BuildingVCProjMain.csproj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectFailure(@"BuildingVCProjMain.csproj", logger);
 
             logger.AssertLogContains("Hello from foo.csproj");
             string error = String.Format(AssemblyResources.GetString("MSBuild.ProjectUpgradeNeededToVcxProj"), "blah.vcproj");
             Assert.Equal(0, logger.WarningCount);
             Assert.Equal(1, logger.ErrorCount);
-            Assert.True(logger.FullLog.Contains(error));
+            Assert.Contains(error, logger.FullLog);
         }
 
 #if FEATURE_COMPILE_IN_TESTS
@@ -441,7 +451,8 @@ namespace Microsoft.Build.UnitTests
                 </Project>
                 ");
 
-            ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"bug'533'369\Sub;Dir\TeamBuild.proj");
+            MockLogger logger = new MockLogger(_testOutput);
+            ObjectModelHelpers.BuildTempProjectFileExpectSuccess(@"bug'533'369\Sub;Dir\TeamBuild.proj", logger);
 
             ObjectModelHelpers.AssertFileExistsInTempProjectDirectory(@"bug'533'369\Sub;Dir\binaries\ConsoleApplication1.exe");
         }
@@ -617,7 +628,8 @@ namespace Microsoft.Build.UnitTests
                     </Project>
                 ");
 
-                var logger = ObjectModelHelpers.BuildTempProjectFileExpectSuccess(projectFile);
+                MockLogger logger = new MockLogger(_testOutput);
+                ObjectModelHelpers.BuildTempProjectFileExpectSuccess(projectFile, logger);
 
                 Console.WriteLine(logger.FullLog);
 
@@ -691,7 +703,7 @@ namespace Microsoft.Build.UnitTests
                     ", projectFile2);
 
                 Assert.True(targetOutputs.ContainsKey("Build"));
-                Assert.Equal(1, targetOutputs["Build"].Items.Length);
+                Assert.Single(targetOutputs["Build"].Items);
                 ObjectModelHelpers.AssertItemsMatch(expectedItemOutputs, targetOutputs["Build"].Items, false /* order of items not enforced */);
             }
             finally

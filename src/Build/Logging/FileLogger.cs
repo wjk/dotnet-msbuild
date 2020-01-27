@@ -81,6 +81,11 @@ namespace Microsoft.Build.Logging
             // want to make decisions based on our verbosity, so we do this last.
             base.Initialize(eventSource, nodeCount);
 
+            if (!SkipProjectStartedText && Verbosity >= LoggerVerbosity.Normal)
+            {
+                eventSource.BuildStarted += (obj, args) => WriteHandler(ResourceUtilities.FormatResourceStringStripCodeAndKeyword("LogLoggerVerbosity", Verbosity));
+            }
+
             try
             {
                 string logDirectory = null;
@@ -258,12 +263,12 @@ namespace Microsoft.Build.Logging
         /// <summary>
         /// File logger parameters delimiters.
         /// </summary>
-        private static readonly char[] s_fileLoggerParameterDelimiters = { ';' };
+        private static readonly char[] s_fileLoggerParameterDelimiters = MSBuildConstants.SemicolonChar;
 
         /// <summary>
         /// File logger parameter value split character.
         /// </summary>
-        private static readonly char[] s_fileLoggerParameterValueSplitCharacter = { '=' };
+        private static readonly char[] s_fileLoggerParameterValueSplitCharacter = MSBuildConstants.EqualsChar;
 
         #endregion
     }

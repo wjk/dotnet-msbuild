@@ -104,6 +104,11 @@ namespace Microsoft.Build.Tasks
         /// </summary>
         public bool UseSymboliclinksIfPossible { get; set; } = s_forceSymlinks;
 
+        /// <summary>
+        /// Fail if unable to create a symbolic or hard link instead of falling back to copy
+        /// </summary>
+        public bool ErrorIfLinkFails { get; set; }
+
         public bool SkipUnchangedFiles { get; set; }
 
         [Output]
@@ -257,6 +262,12 @@ namespace Microsoft.Build.Tasks
                 TryCopyViaLink("Copy.SymbolicLinkComment", MessageImportance.Normal, sourceFileState, destinationFileState, ref destinationFileExists, out linkCreated, ref errorMessage, (source, destination, errMessage) => NativeMethods.MakeSymbolicLink(destination, source, ref errorMessage));
             }
 
+            if (ErrorIfLinkFails && !linkCreated)
+            {
+                Log.LogErrorWithCodeFromResources("Copy.LinkFailed", sourceFileState.Name, destinationFileState.Name);
+                return false;
+            }
+
             // If the link was not created (either because the user didn't want one, or because it couldn't be created)
             // then let's copy the file
             if (!linkCreated)
@@ -294,12 +305,7 @@ namespace Microsoft.Build.Tasks
 
             // CreateHardLink and CreateSymbolicLink cannot overwrite an existing file or link
             // so we need to delete the existing entry before we create the hard or symbolic link.
-            // We need to do a best-effort check to see if the files are the same
-            // if they are the same then we won't delete, just in case they refer to the same
-            // physical file on disk.
-            // Since we'll fall back to a copy (below) this will fail and issue a correct
-            // message in the case that the source and destination are in fact the same file.
-            if (destinationFileExists && !IsMatchingSizeAndTimeStamp(sourceFileState, destinationFileState))
+            if (destinationFileExists)
             {
                 FileUtilities.DeleteNoThrow(destinationFileState.Name);
             }
@@ -610,6 +616,12 @@ namespace Microsoft.Build.Tasks
             if (UseHardlinksIfPossible & UseSymboliclinksIfPossible)
             {
                 Log.LogErrorWithCodeFromResources("Copy.ExactlyOneTypeOfLink", "UseHardlinksIfPossible", "UseSymboliclinksIfPossible");
+                return false;
+            }
+
+            if (ErrorIfLinkFails && !UseHardlinksIfPossible && !UseSymboliclinksIfPossible)
+            {
+                Log.LogErrorWithCodeFromResources("Copy.ErrorIfLinkFailsSetWithoutLinkOption");
                 return false;
             }
 

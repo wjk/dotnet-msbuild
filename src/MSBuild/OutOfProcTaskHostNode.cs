@@ -36,7 +36,7 @@ namespace Microsoft.Build.CommandLine
 #if CLR2COMPATIBILITY
         IBuildEngine3
 #else
-        IBuildEngine5
+        IBuildEngine6
 #endif
     {
         /// <summary>
@@ -442,6 +442,19 @@ namespace Microsoft.Build.CommandLine
 
         #endregion
 
+        #region IBuildEngine6 Implementation
+
+        /// <summary>
+        /// Gets the global properties for the current project.
+        /// </summary>
+        /// <returns>An <see cref="IReadOnlyDictionary{String, String}" /> containing the global properties of the current project.</returns>
+        public IReadOnlyDictionary<string, string> GetGlobalProperties()
+        {
+            return new Dictionary<string, string>(_currentConfiguration.GlobalProperties);
+        }
+
+        #endregion
+
 #endif
 
         #region INodePacketFactory Members
@@ -472,7 +485,7 @@ namespace Microsoft.Build.CommandLine
         /// <param name="nodeId">The node from which the packet was received.</param>
         /// <param name="packetType">The packet type.</param>
         /// <param name="translator">The translator containing the data from which the packet should be reconstructed.</param>
-        public void DeserializeAndRoutePacket(int nodeId, NodePacketType packetType, INodePacketTranslator translator)
+        public void DeserializeAndRoutePacket(int nodeId, NodePacketType packetType, ITranslator translator)
         {
             _packetFactory.DeserializeAndRoutePacket(nodeId, packetType, translator);
         }

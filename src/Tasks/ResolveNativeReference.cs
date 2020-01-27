@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Shared;
@@ -131,7 +132,7 @@ namespace Microsoft.Build.Tasks
 
                 if (!String.IsNullOrEmpty(path))
                 {
-#if _DEBUG
+#if DEBUG
                     try
                     {
 #endif
@@ -139,7 +140,7 @@ namespace Microsoft.Build.Tasks
                     {
                         retValue = false;
                     }
-#if _DEBUG
+#if DEBUG
                     }
                     catch (Exception)
                     {
@@ -310,7 +311,7 @@ namespace Microsoft.Build.Tasks
                                     itemTypeLib.SetMetadata(ComReferenceItemMetadataNames.wrapperTool, ComReferenceTypes.tlbimp);
                                     itemTypeLib.SetMetadata(ComReferenceItemMetadataNames.guid, typelib.TlbId);
                                     itemTypeLib.SetMetadata(ComReferenceItemMetadataNames.lcid, "0");
-                                    string[] verMajorAndMinor = typelib.Version.Split('.');
+                                    string[] verMajorAndMinor = typelib.Version.Split(MSBuildConstants.DotChar);
                                     // UNDONE: are major and minor version numbers in base 10 or 16?
                                     itemTypeLib.SetMetadata(ComReferenceItemMetadataNames.versionMajor, verMajorAndMinor[0]);
                                     itemTypeLib.SetMetadata(ComReferenceItemMetadataNames.versionMinor, verMajorAndMinor[1]);

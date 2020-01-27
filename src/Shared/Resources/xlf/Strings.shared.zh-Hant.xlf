@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
-  <file datatype="xml" source-language="en" target-language="zh-Hant" original="../Strings.shared.resx">
+  <file datatype="xml" source-language="en" target-language="zh-HANT" original="../Strings.shared.resx">
     <body>
       <trans-unit id="BuildAborted">
         <source>MSB4188: Build was canceled.</source>
@@ -52,7 +52,7 @@
       </trans-unit>
       <trans-unit id="InvalidVerbosity">
         <source>MSB4103: "{0}" is not a valid logger verbosity level.</source>
-        <target state="translated">MSB4103: "{0}" 不是有效的記錄器詳細等級。</target>
+        <target state="translated">MSB4103: "{0}" 不是有效的記錄器詳細程度等級。</target>
         <note>{StrBegin="MSB4103: "}</note>
       </trans-unit>
       <trans-unit id="MissingProject">
@@ -64,6 +64,21 @@
         <source>Path: {0} exceeds the OS max path limit. The fully qualified file name must be less than {1} characters.</source>
         <target state="translated">路徑: {0} 超過 OS 路徑上限。完整檔案名稱必須少於 {1} 個字元。</target>
         <note />
+      </trans-unit>
+      <trans-unit id="SolutionFilterFilterContainsProjectNotInSolution">
+        <source>MSB5028: Solution filter file at "{0}" includes project "{1}" that is not in the solution file at "{2}".</source>
+        <target state="new">MSB5028: Solution filter file at "{0}" includes project "{1}" that is not in the solution file at "{2}".</target>
+        <note>{StrBegin="MSB5028: "}UE: The project filename is provided separately to loggers.</note>
+      </trans-unit>
+      <trans-unit id="SolutionFilterJsonParsingError">
+        <source>MSB5025: Json in solution filter file "{0}" is incorrectly formatted.</source>
+        <target state="new">MSB5025: Json in solution filter file "{0}" is incorrectly formatted.</target>
+        <note>{StrBegin="MSB5025: "}UE: The solution filename is provided separately to loggers.</note>
+      </trans-unit>
+      <trans-unit id="SolutionFilterMissingSolutionError">
+        <source>MSB5026: The solution filter file at "{0}" specifies there will be a solution file at "{1}", but that file does not exist.</source>
+        <target state="new">MSB5026: The solution filter file at "{0}" specifies there will be a solution file at "{1}", but that file does not exist.</target>
+        <note>{StrBegin="MSB5026: "}UE: The solution filename is provided separately to loggers.</note>
       </trans-unit>
       <trans-unit id="UnrecognizedToolsVersion">
         <source>MSB4132: The tools version "{0}" is unrecognized. Available tools versions are {1}.</source>
@@ -276,7 +291,7 @@
       <trans-unit id="Shared.CanNotFindValidMSBuildLocation">
         <source>MSB5024: Could not determine a valid location to MSBuild. Try running this process from the Developer Command Prompt for Visual Studio.</source>
         <target state="translated">MSB5024: 無法判斷 MSBuild 的有效位置。請嘗試從 Visual Studio 的開發人員命令提示字元執行此處理序。</target>
-        <note>{StrBegin="MSB5021: "}</note>
+        <note>{StrBegin="MSB5024: "}</note>
       </trans-unit>
       <trans-unit id="InvalidLogFileFormat">
         <source>MSB4233: There was an exception while reading the log file: {0}</source>

@@ -5,6 +5,7 @@ using System;
 using System.Reflection;
 
 using Microsoft.Build.Framework;
+using Microsoft.Build.Shared;
 using Microsoft.Build.Tasks;
 using Microsoft.Build.Utilities;
 using Xunit;
@@ -84,7 +85,7 @@ namespace Microsoft.Build.UnitTests
             MyToolTaskExtension t = new MyToolTaskExtension();
             t.Bag["Key"] = true;
 
-            Assert.Equal(true, t.GetBoolParameterWithDefault("Key", false));
+            Assert.True(t.GetBoolParameterWithDefault("Key", false));
         }
 
         /// <summary>
@@ -111,7 +112,7 @@ namespace Microsoft.Build.UnitTests
 
             MyToolTaskExtension t = new MyToolTaskExtension(useNewLineSeparators: true, addResponseFileCommands: addResponseFileCommands);
             
-            string[] actual = t.GetResponseFileCommands().Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            string[] actual = t.GetResponseFileCommands().Split(MSBuildConstants.EnvironmentNewLine, StringSplitOptions.None);
             string[] expected =
             {
                 "/A:D66B977148114482A88B0EFC1E531F02",

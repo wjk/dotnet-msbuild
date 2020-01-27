@@ -313,6 +313,11 @@ namespace Microsoft.Build.Utilities
         #region Overridable methods
 
         /// <summary>
+        /// Overridable function called after <see cref="Process.Start()"/> in <see cref="ExecuteTool"/>
+        /// </summary>
+        protected virtual void ProcessStarted() { }
+
+        /// <summary>
         /// Gets the fully qualified tool name. Should return ToolExe if ToolTask should search for the tool 
         /// in the system path. If ToolPath is set, this is ignored.
         /// </summary>
@@ -705,6 +710,9 @@ namespace Microsoft.Build.Utilities
                 {
                     proc.StandardInput.Dispose();
                 }
+
+                // Call user-provided hook for code that should execute immediately after the process starts
+                this.ProcessStarted();
 
                 // sign up for stderr callbacks
                 proc.BeginErrorReadLine();
@@ -1252,7 +1260,7 @@ namespace Microsoft.Build.Utilities
         {
             // Get path from the environment and split path separator
             return Environment.GetEnvironmentVariable("PATH")?
-                .Split(Path.PathSeparator)?
+                .Split(MSBuildConstants.PathSeparatorChar)?
                 .Where(path =>
                 {
                     try
@@ -1279,10 +1287,15 @@ namespace Microsoft.Build.Utilities
         /// <returns>true, if task executes successfully</returns>
         public override bool Execute()
         {
-            // Let the tool validate its parameters. ToolTask is responsible for logging
-            // useful information about what was wrong with the parameters.
+            // Let the tool validate its parameters.
             if (!ValidateParameters())
             {
+                // The ToolTask is responsible for logging useful information about what was wrong with the
+                // parameters; if it didn't, at least emit a generic message.
+                if (!Log.HasLoggedErrors)
+                {
+                    LogPrivate.LogErrorWithCodeFromResources("ToolTask.ValidateParametersFailed", this.GetType().FullName);
+                }
                 return false;
             }
 
@@ -1585,7 +1598,7 @@ namespace Microsoft.Build.Utilities
         /// <summary>
         /// Splitter for environment variables
         /// </summary>
-        private static readonly char[] s_equalsSplitter = new char[] { '=' };
+        private static readonly char[] s_equalsSplitter = MSBuildConstants.EqualsChar;
 
         /// <summary>
         /// The actual importance at which standard out messages will be logged 

@@ -83,7 +83,9 @@ namespace Microsoft.Build.Shared
             (char)31, ':', '*', '?', '\\', '/'
         };
 
-        private static readonly char[] Slashes = { '/', '\\' };
+        internal static readonly char[] Slashes = { '/', '\\' };
+
+        internal static readonly string DirectorySeparatorString = Path.DirectorySeparatorChar.ToString();
 
 #if !CLR2COMPATIBILITY
         private static readonly ConcurrentDictionary<string, bool> FileExistenceCache = new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -250,6 +252,22 @@ namespace Microsoft.Build.Shared
             return null;
         }
 
+        internal static string TruncatePathToTrailingSegments(string path, int trailingSegmentsToKeep)
+        {
+#if !CLR2COMPATIBILITY
+            ErrorUtilities.VerifyThrowInternalLength(path, nameof(path));
+            ErrorUtilities.VerifyThrow(trailingSegmentsToKeep >= 0, "trailing segments must be positive");
+
+            var segments = path.Split(Slashes, StringSplitOptions.RemoveEmptyEntries);
+
+            var headingSegmentsToRemove = Math.Max(0, segments.Length - trailingSegmentsToKeep);
+
+            return string.Join(DirectorySeparatorString, segments.Skip(headingSegmentsToRemove));
+#else
+            return path;
+#endif
+        }
+
         internal static bool ContainsRelativePathSegments(string path)
         {
             for (int i = 0; i < path.Length; i++)
@@ -336,7 +354,7 @@ namespace Microsoft.Build.Shared
 
                 if (IsPathTooLong(uncheckedFullPath))
                 {
-                    string message = ResourceUtilities.FormatString(AssemblyResources.GetString("Shared.PathTooLong"), path, (int)NativeMethodsShared.OSMaxPathLimit);
+                    string message = ResourceUtilities.FormatString(AssemblyResources.GetString("Shared.PathTooLong"), path, NativeMethodsShared.MaxPath);
                     throw new PathTooLongException(message);
                 }
 
@@ -642,11 +660,8 @@ namespace Microsoft.Build.Shared
 
             if (NativeMethodsShared.IsWindows && !EndsWithSlash(fullPath))
             {
-                Match drive = FileUtilitiesRegex.DrivePattern.Match(fileSpec);
-                Match UNCShare = FileUtilitiesRegex.UNCPattern.Match(fullPath);
-
-                if ((drive.Success && (drive.Length == fileSpec.Length)) ||
-                    (UNCShare.Success && (UNCShare.Length == fullPath.Length)))
+                if (FileUtilitiesRegex.IsDrivePattern(fileSpec) ||
+                    FileUtilitiesRegex.IsUncPattern(fullPath))
                 {
                     // append trailing slash if Path.GetFullPath failed to (this happens with drive-specs and UNC shares)
                     fullPath += Path.DirectorySeparatorChar;
@@ -939,12 +954,21 @@ namespace Microsoft.Build.Shared
         }
 
         /// <summary>
-        /// This method returns true if the specified filename is a solution file (.sln), otherwise
-        /// it returns false.
+        /// This method returns true if the specified filename is a solution file (.sln) or
+        /// solution filter file (.slnf); otherwise, it returns false.
         /// </summary>
+        /// <remarks>
+        /// Solution filters are included because they are a thin veneer over solutions, just
+        /// with a more limited set of projects to build, and should be treated the same way.
+        /// </remarks>
         internal static bool IsSolutionFilename(string filename)
         {
-            return HasExtension(filename, ".sln");
+            return HasExtension(filename, ".sln") || HasExtension(filename, ".slnf");
+        }
+
+        internal static bool IsSolutionFilterFilename(string filename)
+        {
+            return HasExtension(filename, ".slnf");
         }
 
         /// <summary>
@@ -1062,13 +1086,13 @@ namespace Microsoft.Build.Shared
         private static bool IsPathTooLong(string path)
         {
             // >= not > because MAX_PATH assumes a trailing null
-            return path.Length >= (int)NativeMethodsShared.OSMaxPathLimit;
+            return path.Length >= NativeMethodsShared.MaxPath;
         }
 
         private static bool IsPathTooLongIfRooted(string path)
         {
-            bool hasMaxPath = NativeMethodsShared.OSMaxPathLimit != NativeMethodsShared.MaxPathLimits.None;
-            int maxPath = (int)NativeMethodsShared.OSMaxPathLimit;
+            bool hasMaxPath = NativeMethodsShared.HasMaxPath;
+            int maxPath = NativeMethodsShared.MaxPath;
             // >= not > because MAX_PATH assumes a trailing null
             return hasMaxPath && !IsRootedNoThrow(path) && NativeMethodsShared.GetCurrentDirectory().Length + path.Length + 1 /* slash */ >= maxPath;
         }
@@ -1138,6 +1162,11 @@ namespace Microsoft.Build.Shared
         internal static string ToSlash(this string s)
         {
             return s.Replace('\\', '/');
+        }
+
+        internal static string ToBackslash(this string s)
+        {
+            return s.Replace('/', '\\');
         }
 
         /// <summary>

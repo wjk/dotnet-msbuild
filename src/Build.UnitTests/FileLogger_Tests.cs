@@ -46,7 +46,7 @@ namespace Microsoft.Build.UnitTests
             project.ProjectCollection.UnregisterAllLoggers();
 
             string log = File.ReadAllText(logFile);
-            Assert.True(log.Contains("Hello world from the FileLogger")); // "Log should have contained message"
+            Assert.Contains("Hello world from the FileLogger", log); // "Log should have contained message"
 
             File.Delete(logFile);
         }
@@ -66,7 +66,7 @@ namespace Microsoft.Build.UnitTests
                 SetUpFileLoggerAndLogMessage("logfile=" + log, new BuildMessageEventArgs("message here", null, null, MessageImportance.High));
                 VerifyFileContent(log, "message here");
 
-                
+
                 byte[] content = ReadRawBytes(log);
                 Assert.Equal((byte)109, content[0]); // 'm'
             }
@@ -369,6 +369,49 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
+        /// File logger is writting the verbosity level as soon the build starts.
+        /// </summary>
+        [Theory]
+        [InlineData(LoggerVerbosity.Quiet, false)]
+        [InlineData(LoggerVerbosity.Minimal, false)]
+        [InlineData(LoggerVerbosity.Normal, true)]
+        [InlineData(LoggerVerbosity.Detailed, true)]
+        [InlineData(LoggerVerbosity.Diagnostic, true)]
+        public void LogVerbosityMessage(LoggerVerbosity loggerVerbosity, bool shouldContain)
+        {
+            using (var testEnvironment = TestEnvironment.Create())
+            {
+                var fileLogger = new FileLogger
+                {
+                    Verbosity = loggerVerbosity
+                };
+
+                var logFile = testEnvironment.CreateFile(".log");
+                fileLogger.Parameters = "logfile=" + logFile.Path;
+
+                Project project = ObjectModelHelpers.CreateInMemoryProject(@"
+                <Project ToolsVersion=`msbuilddefaulttoolsversion` xmlns=`msbuildnamespace`>
+                    <Target Name=`Build` />
+                </Project>
+                ");
+
+                project.Build(fileLogger);
+                project.ProjectCollection.UnregisterAllLoggers();
+
+                string log = File.ReadAllText(logFile.Path);
+                var message = ResourceUtilities.FormatResourceStringStripCodeAndKeyword("LogLoggerVerbosity", loggerVerbosity);
+                if (shouldContain)
+                {
+                    Assert.Contains(message, log);
+                }
+                else
+                {
+                    Assert.DoesNotContain(message, log);
+                }
+            }
+        }
+
+        /// <summary>
         /// Gets a filename for a nonexistent temporary file.
         /// </summary>
         /// <returns></returns>
@@ -421,8 +464,8 @@ namespace Microsoft.Build.UnitTests
                 actualContent = sr.ReadToEnd();
             }
 
-            string[] actualLines = actualContent.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            string[] expectedLines = expectedContent.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] actualLines = actualContent.Split(MSBuildConstants.NewlineChar, StringSplitOptions.RemoveEmptyEntries);
+            string[] expectedLines = expectedContent.Split(MSBuildConstants.NewlineChar, StringSplitOptions.RemoveEmptyEntries);
 
             Assert.Equal(expectedLines.Length, actualLines.Length);
 

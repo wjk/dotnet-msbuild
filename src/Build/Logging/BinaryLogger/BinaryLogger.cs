@@ -4,6 +4,7 @@ using System.IO.Compression;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Shared;
 using Microsoft.Build.Shared.FileSystem;
+using Microsoft.Build.Utilities;
 
 namespace Microsoft.Build.Logging
 {
@@ -38,7 +39,7 @@ namespace Microsoft.Build.Logging
         private BuildEventArgsWriter eventArgsWriter;
         private ProjectImportsCollector projectImportsCollector;
         private string _initialTargetOutputLogging;
-        private string _initialLogImports;
+        private bool _initialLogImports;
 
         /// <summary>
         /// Describes whether to collect the project files (including imported project files) used during the build.
@@ -86,10 +87,11 @@ namespace Microsoft.Build.Logging
         public void Initialize(IEventSource eventSource)
         {
             _initialTargetOutputLogging = Environment.GetEnvironmentVariable("MSBUILDTARGETOUTPUTLOGGING");
-            _initialLogImports = Environment.GetEnvironmentVariable("MSBUILDLOGIMPORTS");
+            _initialLogImports = Traits.Instance.EscapeHatches.LogProjectImports;
 
             Environment.SetEnvironmentVariable("MSBUILDTARGETOUTPUTLOGGING", "true");
             Environment.SetEnvironmentVariable("MSBUILDLOGIMPORTS", "1");
+            Traits.Instance.EscapeHatches.LogProjectImports = true;
 
             ProcessParameters();
 
@@ -146,7 +148,8 @@ namespace Microsoft.Build.Logging
         public void Shutdown()
         {
             Environment.SetEnvironmentVariable("MSBUILDTARGETOUTPUTLOGGING", _initialTargetOutputLogging);
-            Environment.SetEnvironmentVariable("MSBUILDLOGIMPORTS", _initialLogImports);
+            Environment.SetEnvironmentVariable("MSBUILDLOGIMPORTS", _initialLogImports ? "1" : "");
+            Traits.Instance.EscapeHatches.LogProjectImports = _initialLogImports;
 
             if (projectImportsCollector != null)
             {
@@ -229,7 +232,7 @@ namespace Microsoft.Build.Logging
                 throw new LoggerException(ResourceUtilities.FormatResourceStringStripCodeAndKeyword("InvalidBinaryLoggerParameters", ""));
             }
 
-            var parameters = Parameters.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            var parameters = Parameters.Split(MSBuildConstants.SemicolonChar, StringSplitOptions.RemoveEmptyEntries);
             foreach (var parameter in parameters)
             {
                 if (string.Equals(parameter, "ProjectImports=None", StringComparison.OrdinalIgnoreCase))

@@ -33,7 +33,7 @@ namespace Microsoft.Build.BackEnd
 #if FEATURE_APPDOMAIN
         MarshalByRefObject,
 #endif
-        IBuildEngine5
+        IBuildEngine6
     {
         /// <summary>
         /// True if the "secret" environment variable MSBUILDNOINPROCNODE is set. 
@@ -285,7 +285,7 @@ namespace Microsoft.Build.BackEnd
 
             // If the caller supplies an array to put the target outputs in, it must have the same length as the array of project file names they provided, too.
             // "MSB3094: "{2}" refers to {0} item(s), and "{3}" refers to {1} item(s). They must have the same number of items."
-            ErrorUtilities.VerifyThrowArgument((targetOutputsPerProject == null) || (projectFileNames.Length == targetOutputsPerProject.Length), "General.TwoVectorsMustHaveSameLength", projectFileNames.Length, targetOutputsPerProject.Length, "projectFileNames", "targetOutputsPerProject");
+            ErrorUtilities.VerifyThrowArgument((targetOutputsPerProject == null) || (projectFileNames.Length == targetOutputsPerProject.Length), "General.TwoVectorsMustHaveSameLength", projectFileNames.Length, targetOutputsPerProject?.Length ?? 0, "projectFileNames", "targetOutputsPerProject");
 
             BuildEngineResult result = BuildProjectFilesInParallel(projectFileNames, targetNames, globalProperties, new List<String>[projectFileNames.Length], toolsVersion, includeTargetOutputs);
 
@@ -336,7 +336,7 @@ namespace Microsoft.Build.BackEnd
         /// <summary>
         /// Requests to yield the node.
         /// Thread safe, however Yield cannot be called unless the
-        /// last call to Yield or Reaquire was Reaquire.
+        /// last call to Yield or Reacquire was Reacquire.
         /// </summary>
         public void Yield()
         {
@@ -351,8 +351,8 @@ namespace Microsoft.Build.BackEnd
 
         /// <summary>
         /// Requests to reacquire the node.
-        /// Thread safe, however Reaquire cannot be called unless the
-        /// last call to Yield or Reaquire was Yield.
+        /// Thread safe, however Reacquire cannot be called unless the
+        /// last call to Yield or Reacquire was Yield.
         /// </summary>
         public void Reacquire()
         {
@@ -647,6 +647,19 @@ namespace Microsoft.Build.BackEnd
 
         #endregion
 
+        #region IBuildEngine6 Members
+
+        /// <summary>
+        /// Gets the global properties for the current project.
+        /// </summary>
+        /// <returns>An <see cref="IReadOnlyDictionary{String, String}" /> containing the global properties of the current project.</returns>
+        public IReadOnlyDictionary<string, string> GetGlobalProperties()
+        {
+            return _requestEntry.RequestConfiguration.GlobalProperties.ToDictionary();
+        }
+
+        #endregion
+
         /// <summary>
         /// Called by the internal MSBuild task.
         /// Does not take the lock because it is called by another request builder thread.
@@ -928,6 +941,16 @@ namespace Microsoft.Build.BackEnd
                         if (results[i].OverallResult == BuildResultCode.Failure)
                         {
                             overallSuccess = false;
+                        }
+
+                        if (!string.IsNullOrEmpty(results[i].SchedulerInducedError))
+                        {
+                            LoggingContext.LogErrorFromText(
+                                subcategoryResourceName: null,
+                                errorCode: null,
+                                helpKeyword: null,
+                                file: new BuildEventFileInfo(ProjectFileOfTaskNode, LineNumberOfTaskNode, ColumnNumberOfTaskNode),
+                                message: results[i].SchedulerInducedError);
                         }
                     }
 

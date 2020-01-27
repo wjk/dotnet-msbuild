@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Configuration.Assemblies;
 using System.Runtime.Serialization;
 using System.IO;
-#if !FEATURE_ASSEMBLY_LOADFROM
+#if FEATURE_ASSEMBLYLOADCONTEXT
 using System.Reflection.PortableExecutable;
 using System.Reflection.Metadata;
 #endif
@@ -183,7 +183,7 @@ namespace Microsoft.Build.Shared
         internal static AssemblyNameExtension GetAssemblyNameEx(string path)
         {
             AssemblyName assemblyName = null;
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
             try
             {
                 assemblyName = AssemblyName.GetAssemblyName(path);
@@ -741,7 +741,7 @@ namespace Microsoft.Build.Shared
             }
 
             // Do the names match?
-            if (0 != string.Compare(Name, that.Name, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(Name, that.Name, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }

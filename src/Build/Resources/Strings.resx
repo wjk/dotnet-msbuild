@@ -148,7 +148,7 @@
   </data>
   <data name="CannotExpandItemMetadata" UESanitized="false" Visibility="Public">
     <value>MSB4248: Cannot expand metadata in expression "{0}". {1}</value>
-    <comment>{StrBegin="MSB4023: "}UE: This message is shown when metadata cannot be expanded in an expression for some reason e.g. trying to apply
+    <comment>{StrBegin="MSB4248: "}UE: This message is shown when metadata cannot be expanded in an expression for some reason e.g. trying to apply
     %(RootDir) to an item-spec that's not a valid path would result in this error.
     LOCALIZATION: "{1}" is a localized message explaining the problem.</comment>
   </data>
@@ -424,7 +424,7 @@
     <comment>{StrBegin="MSB4101: "}</comment>
   </data>
   <data name="ImportedProjectNotFound" UESanitized="false" Visibility="Public">
-    <value>MSB4019: The imported project "{0}" was not found. Confirm that the path in the &lt;Import&gt; declaration is correct, and that the file exists on disk.</value>
+    <value>MSB4019: The imported project "{0}" was not found. Confirm that the expression in the Import declaration "{1}" is correct, and that the file exists on disk.</value>
     <comment>{StrBegin="MSB4019: "}LOCALIZATION: &lt;Import&gt; should not be localized.</comment>
   </data>
   <data name="ImportedProjectFromExtensionsPathNotFoundFromAppConfig" UESanitized="false" Visibility="Public">
@@ -527,7 +527,7 @@
     </comment>
   </data>
   <data name="InvalidFunctionStaticMethodSyntax" UESanitized="false" Visibility="Public">
-    <value>MSB4186: Invalid static method invocation syntax: "{0}". {1} Static method invocation should be of the form: $([FullTypeName]::Method()), e.g. $([System.IO.Path]::Combine(`a`, `b`)). </value>
+    <value>MSB4186: Invalid static method invocation syntax: "{0}". {1} Static method invocation should be of the form: $([FullTypeName]::Method()), e.g. $([System.IO.Path]::Combine(`a`, `b`)). Check that all parameters are defined, are of the correct type, and are specified in the right order.</value>
     <comment>{StrBegin="MSB4186: "}
       UE: This message is shown when the user attempts to call a static method on a type, but has used the incorrect syntax
       LOCALIZATION: "{0}" is the function expression which is in error. "{1}" is a message from an FX exception that describes why the expression is bad.
@@ -1472,6 +1472,9 @@ Utilization:          {0} Average Utilization: {1:###.0}</value>
   <data name="OM_NameInvalid">
     <value>The name "{0}" contains an invalid character "{1}".</value>
   </data>
+  <data name="OM_TargetNameNullOrEmpty">
+    <value>Method {0} cannot be called with a collection containing null or empty target names.</value>
+  </data>
   <data name="OM_NoOtherwiseBeforeWhenOrOtherwise">
     <value>An &lt;Otherwise&gt; element cannot be located before a &lt;When&gt; or &lt;Otherwise&gt; element.</value>
   </data>
@@ -1715,10 +1718,18 @@ Utilization:          {0} Average Utilization: {1:###.0}</value>
     </comment>
   </data>
   <data name="CacheMissesNotAllowedInIsolatedGraphBuilds" UESanitized="false" Visibility="Public">
-    <value>MSB4252: Project "{0}" has a reference to "{1}" ({2} target(s)) but the reference has not been previously built. In graph based builds this probably means that the reference is not explicitly specified as a ProjectReference item in "{0}".</value>
+    <value>MSB4252: Project "{0}" with global properties
+    ({1})
+    is building project "{2}" with global properties
+    ({3})
+    with the ({4}) target(s) but the build result for the built project is not in the engine cache. In isolated builds this could mean one of the following:
+    - the reference was called with a target which is not specified in the ProjectReferenceTargets item in project "{0}"
+    - the reference was called with global properties that do not match the static graph inferred nodes
+    - the reference was not explicitly specified as a ProjectReference item in project "{0}"
+    </value>
     <comment>
       {StrBegin="MSB4252:"}
-      LOCALIZATION: Do not localize the following words: ProjectReference.
+      LOCALIZATION: Do not localize the following words: ProjectReference, ProjectReferenceTargets
     </comment>
   </data>
   <data name="NullReferenceFromProjectInstanceFactory" UESanitized="false" Visibility="Public">
@@ -1728,13 +1739,82 @@ Utilization:          {0} Average Utilization: {1:###.0}</value>
       LOCALIZATION:  Do not localize the following words: ProjectInstanceFactoryFunc.
     </comment>
   </data>
+  <data name="UndeclaredMSBuildTasksNotAllowedInIsolatedGraphBuilds" UESanitized="false" Visibility="Public">
+    <value>MSB4254: The MSBuild task is building project(s) "{0}" which are not specified in the ProjectReference item. In isolated builds this probably means that the references are not explicitly specified as a ProjectReference item in "{1}"</value>
+    <comment>
+      {StrBegin="MSB4254:"}
+      LOCALIZATION: Do not localize the following words: ProjectReference, MSBuild, task.
+    </comment>
+  </data>
+  <data name="ErrorReadingCacheFile" UESanitized="false" Visibility="Public">
+    <value>MSB4256: Reading input result cache files from path "{0}" encountered an error: {1}</value>
+  </data>
+  <data name="InputCacheFilesDoNotExist" UESanitized="false" Visibility="Public">
+    <value>MSB4255: The following input result cache files do not exist: "{0}"</value>
+  </data>
+  <data name="EmptyOutputCacheFile" UESanitized="false" Visibility="Public">
+    <value>MSB4257: The specified output result cache file is empty.</value>
+  </data>
+  <data name="ErrorWritingCacheFile" UESanitized="false" Visibility="Public">
+    <value>MSB4258: Writing output result cache file in path "{0}" encountered an error: {1}</value>
+  </data>
+  <data name="UsingInputCaches" UESanitized="false" Visibility="Public">
+    <value>Using input build results caches: {0}</value>
+    <comment>
+      LOCALIZATION: {0} is a list of semicolon separated file paths
+    </comment>
+  </data>
+  <data name="WritingToOutputCache" UESanitized="false" Visibility="Public">
+    <value>Writing build results caches to: {0}</value>
+    <comment>
+      LOCALIZATION: {0} is a file path
+    </comment>
+  </data>
+  <data name="SkippedConstraintsOnRequest" UESanitized="false" Visibility="Public">
+    <value>MSB4260: Project "{0}" skipped graph isolation constraints on referenced project "{1}"</value>
+    <comment>
+      LOCALIZATION: {0} and {1} are file paths
+    </comment>
+  </data>
+  <data name="StaticGraphAcceptsSingleSolutionEntryPoint" UESanitized="false" Visibility="Public">
+    <value>MSB4261: Static graph only accepts a solution as the only entry point. Multiple entry points detected: {0}</value>
+    <value>MSB4261: Multiple entry points with solutions detected: {0}. If static graph is loaded from a solution, that that solution must be the only entry point.</value>
+    <comment>
+      LOCALIZATION: {0} is a semicolon delimited list of files
+    </comment>
+  </data>
+  <data name="StaticGraphSolutionLoaderEncounteredSolutionWarningsAndErrors" UESanitized="false" Visibility="Public">
+    <value>MSB4262: Solution file "{0}" contains the following warnings and errors:
+           Warnings: {1}
+           Errors: {2}
+    </value>
+    <comment>
+      LOCALIZATION: {0} is a file, {1} and {2} are semicolon delimited lists of messages
+    </comment>
+  </data>
+  <data name="StaticGraphDoesNotSupportSlnReferences" UESanitized="false" Visibility="Public">
+    <value>MSB4263: Project "{0}" has a reference to solution file "{1}". Referencing solutions is not supported in static graph.
+    </value>
+    <comment>
+      LOCALIZATION: {0} and {1} are file paths
+    </comment>
+  </data>
+  <data name="LogLoggerVerbosity" xml:space="preserve">
+    <value>Logging verbosity is set to: {0}.</value>
+    <comment>
+      LOCALIZATION: {0} is an enum value of LoggerVerbosity.
+    </comment>
+  </data>
+  <data name="InvalidVersionFormat" xml:space="preserve">
+    <value>Version string was not in a correct format.</value>
+  </data>
   <!--
         The engine message bucket is: MSB4001 - MSB4999
 
         MSB4128 is being used in FileLogger.cs (can't be added here yet as strings are currently frozen)
         MSB4129 is used by Shared\XmlUtilities.cs (can't be added here yet as strings are currently frozen)
 
-        Next message code should be MSB4254.
+        Next message code should be MSB4264.
 
         Some unused codes which can also be reused (because their messages were deleted, and UE hasn't indexed the codes yet):
             <none>

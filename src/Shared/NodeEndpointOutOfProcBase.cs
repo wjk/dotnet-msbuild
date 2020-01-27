@@ -434,6 +434,10 @@ namespace Microsoft.Build.BackEnd
                     }
 
                     gotValidConnection = true;
+
+                    CommunicationsUtilities.Trace("Writing handshake to parent");
+                    localWritePipe.WriteLongForHandshake(GetClientHandshake());
+                    ChangeLinkStatus(LinkStatus.Active);
                 }
                 catch (Exception e)
                 {
@@ -453,10 +457,6 @@ namespace Microsoft.Build.BackEnd
                     return;
                 }
             }
-
-            CommunicationsUtilities.Trace("Writing handshake to parent");
-            localWritePipe.WriteLongForHandshake(GetClientHandshake());
-            ChangeLinkStatus(LinkStatus.Active);
 
             RunReadLoop(
                 new BufferedReadStream(localReadPipe),
@@ -552,7 +552,7 @@ namespace Microsoft.Build.BackEnd
 
                             try
                             {
-                                _packetFactory.DeserializeAndRoutePacket(0, packetType, NodePacketTranslator.GetReadTranslator(localReadPipe, _sharedReadBuffer));
+                                _packetFactory.DeserializeAndRoutePacket(0, packetType, BinaryTranslator.GetReadTranslator(localReadPipe, _sharedReadBuffer));
                             }
                             catch (Exception e)
                             {
@@ -582,7 +582,7 @@ namespace Microsoft.Build.BackEnd
                             while (localPacketQueue.TryDequeue(out packet))
                             {
                                 MemoryStream packetStream = new MemoryStream();
-                                INodePacketTranslator writeTranslator = NodePacketTranslator.GetWriteTranslator(packetStream);
+                                ITranslator writeTranslator = BinaryTranslator.GetWriteTranslator(packetStream);
 
                                 packetStream.WriteByte((byte)packet.Type);
 

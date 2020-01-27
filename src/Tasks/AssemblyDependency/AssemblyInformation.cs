@@ -14,7 +14,7 @@ using System.Text;
 
 using Microsoft.Build.Shared;
 using Microsoft.Build.Shared.FileSystem;
-#if !FEATURE_ASSEMBLY_LOADFROM || MONO
+#if FEATURE_ASSEMBLYLOADCONTEXT || MONO
 using System.Reflection.PortableExecutable;
 using System.Reflection.Metadata;
 #endif
@@ -30,7 +30,7 @@ namespace Microsoft.Build.Tasks
     {
         private AssemblyNameExtension[] _assemblyDependencies;
         private string[] _assemblyFiles;
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
         private readonly IMetaDataDispenser _metadataDispenser;
         private readonly IMetaDataAssemblyImport _assemblyImport;
         private static Guid s_importerGuid = new Guid(((GuidAttribute)Attribute.GetCustomAttribute(typeof(IMetaDataImport), typeof(GuidAttribute), false)).Value);
@@ -39,14 +39,14 @@ namespace Microsoft.Build.Tasks
         private readonly string _sourceFile;
         private FrameworkName _frameworkName;
 
-#if !FEATURE_ASSEMBLY_LOADFROM || MONO
+#if FEATURE_ASSEMBLYLOADCONTEXT || MONO
         private bool _metadataRead;
 #endif
 
-#if FEATURE_ASSEMBLY_LOADFROM && !MONO
+#if !FEATURE_ASSEMBLYLOADCONTEXT && !MONO
         private static string s_targetFrameworkAttribute = "System.Runtime.Versioning.TargetFrameworkAttribute";
 #endif
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
         // Borrowed from genman.
         private const int GENMAN_STRING_BUF_SIZE = 1024;
         private const int GENMAN_LOCALE_BUF_SIZE = 64;
@@ -68,7 +68,7 @@ namespace Microsoft.Build.Tasks
             ErrorUtilities.VerifyThrowArgumentNull(sourceFile, nameof(sourceFile));
             _sourceFile = sourceFile;
 
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
             if (NativeMethodsShared.IsWindows)
             {
                 // Create the metadata dispenser and open scope on the source file.
@@ -82,10 +82,10 @@ namespace Microsoft.Build.Tasks
 #endif
         }
 
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
         private static Assembly ReflectionOnlyAssemblyResolve(object sender, ResolveEventArgs args)
         {
-            string[] nameParts = args.Name.Split(',');
+            string[] nameParts = args.Name.Split(MSBuildConstants.CommaChar);
             Assembly assembly = null;
 
             if (args.RequestingAssembly != null && !string.IsNullOrEmpty(args.RequestingAssembly.Location) && nameParts.Length > 0)
@@ -274,7 +274,7 @@ namespace Microsoft.Build.Tasks
 // Assembly.GetCustomAttributes* for an attribute which belongs
 // to an assembly that mono cannot find, causes a crash!
 // Instead, opt for using PEReader and friends to get that info
-#if FEATURE_ASSEMBLY_LOADFROM && !MONO
+#if !FEATURE_ASSEMBLYLOADCONTEXT && !MONO
             if (!NativeMethodsShared.IsWindows)
             {
                 if (String.Equals(Environment.GetEnvironmentVariable("MONO29679"), "1", StringComparison.OrdinalIgnoreCase))
@@ -345,7 +345,7 @@ namespace Microsoft.Build.Tasks
 #endif
         }
 
-#if !FEATURE_ASSEMBLY_LOADFROM || MONO
+#if FEATURE_ASSEMBLYLOADCONTEXT || MONO
         /// <summary>
         /// Read everything from the assembly in a single stream.
         /// </summary>
@@ -369,11 +369,8 @@ namespace Microsoft.Build.Tasks
 
                     foreach (var handle in assemblyReferences)
                     {
-                        ret.Add(
-                            new AssemblyNameExtension(
-                                metadataReader
-                                .GetAssemblyReference(handle)
-                                .GetAssemblyName()));
+                        var assemblyName = GetAssemblyName(metadataReader, handle);
+                        ret.Add(new AssemblyNameExtension(assemblyName));
                     }
 
                     _assemblyDependencies = ret.ToArray();
@@ -417,11 +414,47 @@ namespace Microsoft.Build.Tasks
                 _metadataRead = true;
             }
         }
+
+        // https://github.com/Microsoft/msbuild/issues/4002
+        // https://github.com/dotnet/corefx/issues/34008
+        //
+        // We do not use AssemblyReference.GetAssemblyName() here because its behavior
+        // is different from other code paths with respect to neutral culture. We will
+        // get unspecified culture instead of explicitly neutral culture. This in turn
+        // leads string comparisons of assembly-name-modulo-version in RAR to false
+        // negatives that break its conflict resolution and binding redirect generation.
+        private static AssemblyName GetAssemblyName(MetadataReader metadataReader, AssemblyReferenceHandle handle)
+        {
+            var entry = metadataReader.GetAssemblyReference(handle);
+
+            var assemblyName = new AssemblyName
+            {
+                Name = metadataReader.GetString(entry.Name),
+                Version = entry.Version,
+                CultureName = metadataReader.GetString(entry.Culture)
+            };
+
+            var publicKeyOrToken = metadataReader.GetBlobBytes(entry.PublicKeyOrToken);
+            if (publicKeyOrToken != null)
+            {
+                if (publicKeyOrToken.Length <= 8)
+                {
+                    assemblyName.SetPublicKeyToken(publicKeyOrToken);
+                }
+                else
+                {
+                    assemblyName.SetPublicKey(publicKeyOrToken);
+                }
+            }
+
+            assemblyName.Flags = (AssemblyNameFlags)(int)entry.Flags;
+            return assemblyName;
+        }
 #endif
 
 // Enabling this for MONO, because it's required by GetFrameworkName.
 // More details are in the comment for that method
-#if !FEATURE_ASSEMBLY_LOADFROM || MONO
+#if FEATURE_ASSEMBLYLOADCONTEXT || MONO
         //  This method copied from DNX source: https://github.com/aspnet/dnx/blob/e0726f769aead073af2d8cd9db47b89e1745d574/src/Microsoft.Dnx.Tooling/Utils/LockFileUtils.cs#L385
         //  System.Reflection.Metadata 1.1 is expected to have an API that helps with this.
         /// <summary>
@@ -481,7 +514,7 @@ namespace Microsoft.Build.Tasks
         }
 #endif
 
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
         /// <summary>
         /// Release interface pointers on Dispose(). 
         /// </summary>
@@ -514,7 +547,7 @@ namespace Microsoft.Build.Tasks
             {
                 StringBuilder runtimeVersion;
                 uint hresult;
-#if _DEBUG
+#if DEBUG
                 // Just to make sure and exercise the code that doubles the size
                 // every time GetRequestedRuntimeInfo fails due to insufficient buffer size.
                 int bufferLength = 1;
@@ -553,7 +586,7 @@ namespace Microsoft.Build.Tasks
         /// <returns>The array of assembly dependencies.</returns>
         private AssemblyNameExtension[] ImportAssemblyDependencies()
         {
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
             var asmRefs = new List<AssemblyNameExtension>();
 
             if (!NativeMethodsShared.IsWindows)
@@ -650,7 +683,7 @@ namespace Microsoft.Build.Tasks
         /// <returns>The extra files of assembly dependencies.</returns>
         private string[] ImportFiles()
         {
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
             var files = new List<string>();
             IntPtr fileEnum = IntPtr.Zero;
             var fileTokens = new UInt32[GENMAN_ENUM_TOKEN_BUF_SIZE];
@@ -693,7 +726,7 @@ namespace Microsoft.Build.Tasks
 #endif
         }
 
-#if FEATURE_ASSEMBLY_LOADFROM
+#if !FEATURE_ASSEMBLYLOADCONTEXT
         /// <summary>
         /// Allocate assembly metadata structure buffer.
         /// </summary>
@@ -987,6 +1020,15 @@ namespace Microsoft.Build.Tasks
                     if (v.Length < 2 || v[0] != 'v')
                     {
                         return string.Empty;
+                    }
+
+                    // Per II.24.2.1, version string length is rounded up
+                    // to a multiple of 4. So we may read eg "4.0.30319\0\0"
+                    // Version.Parse works fine, but it's not pretty in the log.
+                    int firstNull = v.IndexOf('\0');
+                    if (firstNull > 0)
+                    {
+                        v = v.Substring(0, firstNull);
                     }
 
                     // Make sure it is a version number

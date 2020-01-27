@@ -4,22 +4,24 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Build.Framework;
-using Microsoft.Build.Shared;
-
-using Microsoft.Build.Execution;
-using Microsoft.Build.Exceptions;
-using Microsoft.Build.Evaluation;
-using Microsoft.Build.Construction;
-using Microsoft.Build.BackEnd.Logging;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 #if FEATURE_APPDOMAIN
 using System.Runtime.Remoting;
 #endif
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Microsoft.Build.BackEnd.Logging;
+using Microsoft.Build.Construction;
+using Microsoft.Build.Evaluation;
+using Microsoft.Build.Exceptions;
+using Microsoft.Build.Execution;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Shared;
+using Microsoft.Build.Utilities;
 
 using TaskItem = Microsoft.Build.Execution.ProjectItemInstance.TaskItem;
 
@@ -144,7 +146,7 @@ namespace Microsoft.Build.BackEnd
             // If this is false, check the environment variable to see if it's there:
             if (!LogTaskInputs)
             {
-                LogTaskInputs = (Environment.GetEnvironmentVariable("MSBUILDLOGTASKINPUTS") == "1");
+                LogTaskInputs = Traits.Instance.EscapeHatches.LogTaskInputs;
             }
         }
 
@@ -161,7 +163,7 @@ namespace Microsoft.Build.BackEnd
         /// </summary>
         ~TaskExecutionHost()
         {
-            // Debug.Fail("Unexpected finalization.  Dispose should already have been called.");
+            Debug.Fail("Unexpected finalization.  Dispose should already have been called.");
             Dispose(false);
         }
 

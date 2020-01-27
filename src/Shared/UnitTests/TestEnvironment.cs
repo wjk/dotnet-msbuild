@@ -9,12 +9,14 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Build.Shared;
+using Microsoft.Build.Shared.Debugging;
 using Microsoft.Build.Shared.FileSystem;
 using Shouldly;
 using Xunit;
 using Xunit.Abstractions;
 
 using TempPaths = System.Collections.Generic.Dictionary<string, string>;
+using CommonWriterType = System.Action<string, string, System.Collections.Generic.IEnumerable<string>>;
 
 namespace Microsoft.Build.UnitTests
 {
@@ -30,7 +32,7 @@ namespace Microsoft.Build.UnitTests
         /// </summary>
         private readonly List<TransientTestState> _variants = new List<TransientTestState>();
 
-        private readonly ITestOutputHelper _output;
+        public ITestOutputHelper Output { get; }
 
         private readonly Lazy<TransientTestFolder> _defaultTestDirectory;
 
@@ -53,7 +55,7 @@ namespace Microsoft.Build.UnitTests
 
         private TestEnvironment(ITestOutputHelper output)
         {
-            _output = output;
+            Output = output;
             _defaultTestDirectory = new Lazy<TransientTestFolder>(() => CreateFolder());
             SetDefaultInvariant();
         }
@@ -84,7 +86,7 @@ namespace Microsoft.Build.UnitTests
 
                 // Assert invariants
                 foreach (var item in _invariants)
-                    item.AssertInvariant(_output);
+                    item.AssertInvariant(Output);
             }
         }
 
@@ -279,6 +281,29 @@ namespace Microsoft.Build.UnitTests
         }
 
         /// <summary>
+        /// Creates a debugger which can be used to write to from anywhere in the msbuild code base
+        /// It also enables logging in the out of proc nodes, but the given writer object would not be available in the nodes, set one in OutOfProcNode
+        /// </summary>
+        public TransientPrintLineDebugger CreatePrintLineDebugger(CommonWriterType writer)
+        {
+            return WithTransientTestState(new TransientPrintLineDebugger(this, writer));
+        }
+
+        /// <summary>
+        /// Creates a debugger which can be used to write to from (hopefully) anywhere in the msbuild code base using the ITestOutputWriter in this TestEnvironmentHelper
+        /// Will not work for out of proc nodes since the output writer does not reach into those
+        public TransientPrintLineDebugger CreatePrintLineDebuggerWithTestOutputHelper()
+        {
+            ErrorUtilities.VerifyThrowInternalNull(Output, nameof(Output));
+            return WithTransientTestState(new TransientPrintLineDebugger(this, OutPutHelperWriter(Output)));
+
+            CommonWriterType OutPutHelperWriter(ITestOutputHelper output)
+            {
+                return (id, callsite, args) => output.WriteLine(PrintLineDebuggerWriters.SimpleFormat(id, callsite, args));
+            }
+        }
+
+        /// <summary>
         ///     Create an test variant used to change the value of an environment variable during a test. Original value
         ///     will be restored when complete.
         /// </summary>
@@ -305,6 +330,14 @@ namespace Microsoft.Build.UnitTests
             {
                 Console.WriteLine(format, args);
             }
+        }
+
+        /// <summary>
+        /// MSBuild launches the debugger on ErrorUtilities exceptions when in DEBUG. Disable this in tests that assert these exceptions.
+        /// </summary>
+        public void DoNotLaunchDebugger()
+        {
+            SetEnvironmentVariable("MSBUILDDONOTLAUNCHDEBUGGER", "1");
         }
     }
 
@@ -579,12 +612,11 @@ namespace Microsoft.Build.UnitTests
         {
             // Basic checks to make sure we're not deleting something very obviously wrong (e.g.
             // the entire temp drive).
-            Assert.NotNull(Path);
-            Assert.NotEqual(string.Empty, Path);
-            Assert.NotEqual(@"\", Path);
-            Assert.NotEqual(@"/", Path);
-            Assert.NotEqual(System.IO.Path.GetFullPath(System.IO.Path.GetTempPath()), System.IO.Path.GetFullPath(Path));
-            Assert.True(System.IO.Path.IsPathRooted(Path));
+            Path.ShouldNotBeNullOrEmpty();
+            Path.ShouldNotBe(@"\");
+            Path.ShouldNotBe(@"/");
+            System.IO.Path.GetFullPath(Path).ShouldNotBe(System.IO.Path.GetFullPath(System.IO.Path.GetTempPath()));
+            System.IO.Path.IsPathRooted(Path).ShouldBeTrue(() => $"{Path} is not rooted");
 
             FileUtilities.DeleteDirectoryNoThrow(Path, true);
         }
@@ -650,6 +682,21 @@ namespace Microsoft.Build.UnitTests
         public override void Revert()
         {
             FileUtilities.DeleteNoThrow(Path);
+        }
+    }
+
+    public class TransientPrintLineDebugger : TransientTestState
+    {
+        private readonly PrintLineDebugger _printLineDebugger;
+
+        public TransientPrintLineDebugger(TestEnvironment environment, CommonWriterType writer)
+        {
+            _printLineDebugger = PrintLineDebugger.Create(writer);
+        }
+
+        public override void Revert()
+        {
+            _printLineDebugger.Dispose();
         }
     }
 }

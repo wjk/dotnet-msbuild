@@ -4,6 +4,7 @@
 using System;
 using System.Xml;
 using System.Diagnostics;
+using Microsoft.Build.ObjectModelRemoting;
 using Microsoft.Build.Shared;
 
 namespace Microsoft.Build.Construction
@@ -16,6 +17,16 @@ namespace Microsoft.Build.Construction
     /// </summary>
     public class ProjectExtensionsElement : ProjectElement
     {
+        internal ProjectExtensionsElementLink ExtensionLink => (ProjectExtensionsElementLink)Link;
+
+        /// <summary>
+        /// External projects support
+        /// </summary>
+        internal ProjectExtensionsElement(ProjectExtensionsElementLink link)
+            : base(link)
+        {
+        }
+
         /// <summary>
         /// Initialize a parented ProjectExtensionsElement instance
         /// </summary>
@@ -51,12 +62,18 @@ namespace Microsoft.Build.Construction
             [DebuggerStepThrough]
             get
             {
-                return XmlElement.InnerXml;
+                return Link != null ? ExtensionLink.Content : XmlElement.InnerXml;
             }
 
             set
             {
                 ErrorUtilities.VerifyThrowArgumentNull(value, nameof(Content));
+                if (Link != null)
+                {
+                    ExtensionLink.Content = value;
+                    return;
+                }
+
                 XmlElement.InnerXml = value;
                 MarkDirty("Set ProjectExtensions raw {0}", value);
             }
@@ -84,6 +101,11 @@ namespace Microsoft.Build.Construction
             {
                 ErrorUtilities.VerifyThrowArgumentLength(name, nameof(name));
 
+                if (Link != null)
+                {
+                    return ExtensionLink.GetSubElement(name);
+                }
+
                 XmlElement idElement = XmlElement[name];
 
                 // remove the xmlns attribute, because the IDE's not expecting that
@@ -94,6 +116,12 @@ namespace Microsoft.Build.Construction
             {
                 ErrorUtilities.VerifyThrowArgumentLength(name, "name");
                 ErrorUtilities.VerifyThrowArgumentNull(value, "value");
+
+                if (Link != null)
+                {
+                    ExtensionLink.SetSubElement(name, value);
+                    return;
+                }
 
                 XmlElement idElement = XmlElement[name];
 
@@ -108,7 +136,11 @@ namespace Microsoft.Build.Construction
                     XmlElement.AppendChild(idElement);
                 }
 
-                if (idElement.InnerXml != value)
+                // The actual InnerXml may have the MSBuild namespace but be otherwise identical
+                // to the setting, in which case the namespace was probably inherited from the
+                // document and should be ignored.
+                if (idElement.InnerXml != value &&
+                    idElement.InnerXml.Replace(ProjectRootElement.EmptyProjectFileXmlNamespace, string.Empty) != value)
                 {
                     if (value.Length == 0)
                     {

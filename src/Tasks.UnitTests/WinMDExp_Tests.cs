@@ -11,6 +11,7 @@ using Microsoft.Build.Utilities;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Xunit;
+using Microsoft.Build.Shared;
 
 namespace Microsoft.Build.UnitTests
 {
@@ -128,7 +129,7 @@ namespace Microsoft.Build.UnitTests
 
             t.AddResponseFileCommands(c);
 
-            string[] actual = c.ToString().Split(new [] { Environment.NewLine }, StringSplitOptions.None);
+            string[] actual = c.ToString().Split(MSBuildConstants.EnvironmentNewLine, StringSplitOptions.None);
             string[] expected =
             {
                 "/d:sp ace",

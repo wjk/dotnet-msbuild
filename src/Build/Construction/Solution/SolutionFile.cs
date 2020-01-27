@@ -8,6 +8,7 @@ using System.IO;
 using System.Text;
 using System.Globalization;
 using System.Security;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using ErrorUtilities = Microsoft.Build.Shared.ErrorUtilities;
@@ -17,6 +18,8 @@ using BuildEventFileInfo = Microsoft.Build.Shared.BuildEventFileInfo;
 using ResourceUtilities = Microsoft.Build.Shared.ResourceUtilities;
 using ExceptionUtilities = Microsoft.Build.Shared.ExceptionHandling;
 using System.Collections.ObjectModel;
+using Microsoft.Build.Shared;
+using Microsoft.Build.Shared.FileSystem;
 
 namespace Microsoft.Build.Construction
 {
@@ -84,6 +87,7 @@ namespace Microsoft.Build.Construction
         #endregion
         #region Member data
         private string _solutionFile;                 // Could be absolute or relative path to the .SLN file.
+        private HashSet<string> _solutionFilter;     // The project files to include in loading the solution.
         private bool _parsingForConversionOnly;      // Are we parsing this solution to get project reference data during
                                                      // conversion, or in preparation for actually building the solution?
 
@@ -194,7 +198,48 @@ namespace Microsoft.Build.Construction
             {
                 // Should already be canonicalized to a full path
                 ErrorUtilities.VerifyThrowInternalRooted(value);
-                _solutionFile = value;
+                if (FileUtilities.IsSolutionFilterFilename(value))
+                {
+                    try
+                    {
+                        using JsonDocument text = JsonDocument.Parse(File.ReadAllText(value));
+                        JsonElement solution = text.RootElement.GetProperty("solution");
+                        _solutionFile = Path.GetFullPath(solution.GetProperty("path").GetString());
+                        if (!FileSystems.Default.FileExists(_solutionFile))
+                        {
+                            ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile
+                            (
+                                "SubCategoryForSolutionParsingErrors",
+                                new BuildEventFileInfo(_solutionFile),
+                                "SolutionFilterMissingSolutionError",
+                                value,
+                                _solutionFile
+                            );
+                        }
+                        _solutionFilter = new HashSet<string>(NativeMethodsShared.OSUsesCaseSensitivePaths ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+                        foreach (JsonElement project in solution.GetProperty("projects").EnumerateArray())
+                        {
+                            _solutionFilter.Add(project.GetString());
+                        }
+                    }
+                    catch (Exception e) when (e is JsonException || e is KeyNotFoundException || e is InvalidOperationException)
+                    {
+                        ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile
+                        (
+                            false, /* Just throw the exception */
+                            "SubCategoryForSolutionParsingErrors",
+                            new BuildEventFileInfo(value),
+                            e,
+                            "SolutionFilterJsonParsingError",
+                            value
+                        );
+                    }
+                }
+                else
+                {
+                    _solutionFile = value;
+                    _solutionFilter = null;
+                }
             }
         }
 
@@ -216,6 +261,11 @@ namespace Microsoft.Build.Construction
         #endregion
 
         #region Methods
+
+        internal bool ProjectShouldBuild(string projectFile)
+        {
+            return _solutionFilter == null || _solutionFilter.Contains(projectFile);
+        }
 
         /// <summary>
         /// This method takes a path to a solution file, parses the projects and project dependencies
@@ -287,7 +337,6 @@ namespace Microsoft.Build.Construction
                         {
                             ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile
                                 (
-                                    false /* just throw the exception */,
                                     "SubCategoryForSolutionParsingErrors",
                                     new BuildEventFileInfo(solutionFile),
                                     "SolutionParseVersionMismatchError",
@@ -335,7 +384,6 @@ namespace Microsoft.Build.Construction
             // Didn't find the header in lines 1-4, so the solution file is invalid.
             ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile
                 (
-                    false /* just throw the exception */,
                     "SubCategoryForSolutionParsingErrors",
                     new BuildEventFileInfo(solutionFile),
                     "SolutionParseNoHeaderError"
@@ -457,6 +505,30 @@ namespace Microsoft.Build.Construction
                 {
                     // No other section types to process at this point, so just ignore the line
                     // and continue.
+                }
+            }
+
+            if (_solutionFilter != null)
+            {
+                HashSet<string> projectPaths = new HashSet<string>(_projectsInOrder.Count, NativeMethodsShared.OSUsesCaseSensitivePaths ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+                foreach (ProjectInSolution project in _projectsInOrder)
+                {
+                    projectPaths.Add(project.RelativePath);
+                }
+                foreach (string project in _solutionFilter)
+                {
+                    if (!projectPaths.Contains(project))
+                    {
+                        ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile
+                        (
+                            "SubCategoryForSolutionParsingErrors",
+                            new BuildEventFileInfo(project),
+                            "SolutionFilterFilterContainsProjectNotInSolution",
+                            _solutionFilter,
+                            project,
+                            _solutionFile
+                        );
+                    }
                 }
             }
 
@@ -665,8 +737,8 @@ namespace Microsoft.Build.Construction
                         ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile(match.Success, "SubCategoryForSolutionParsingErrors",
                             new BuildEventFileInfo(FullPath, _currentLineNumber, 0), "SolutionParseProjectDepGuidError", proj.ProjectName);
 
-                        string parentGuid = match.Groups["PROPERTYNAME"].Value.Trim();
-                        proj.AddDependency(parentGuid);
+                        string referenceGuid = match.Groups["PROPERTYNAME"].Value.Trim();
+                        proj.AddDependency(referenceGuid);
 
                         line = ReadLine();
                     }
@@ -1033,7 +1105,7 @@ namespace Microsoft.Build.Construction
                 // ProjectReferences = "{FD705688-88D1-4C22-9BFF-86235D89C2FC}|CSClassLibrary1.dll;{F0726D09-042B-4A7A-8A01-6BED2422BD5D}|VCClassLibrary1.dll;" 
                 if (string.Compare(propertyName, "ProjectReferences", StringComparison.OrdinalIgnoreCase) == 0)
                 {
-                    string[] projectReferenceEntries = propertyValue.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] projectReferenceEntries = propertyValue.Split(MSBuildConstants.SemicolonChar, StringSplitOptions.RemoveEmptyEntries);
 
                     foreach (string projectReferenceEntry in projectReferenceEntries)
                     {
@@ -1225,7 +1297,7 @@ namespace Microsoft.Build.Construction
         /// </remarks>
         internal void ParseSolutionConfigurations()
         {
-            var nameValueSeparators = new[] { '=' };
+            var nameValueSeparators = MSBuildConstants.EqualsChar;
             var configPlatformSeparators = new[] { SolutionConfigurationInSolution.ConfigurationPlatformSeparator };
 
             do
@@ -1307,7 +1379,7 @@ namespace Microsoft.Build.Construction
                     continue;
                 }
 
-                string[] nameValue = str.Split('=');
+                string[] nameValue = str.Split(MSBuildConstants.EqualsChar);
 
                 // There should be exactly one '=' character, separating the name and value. 
                 ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile(nameValue.Length == 2, "SubCategoryForSolutionParsingErrors",
@@ -1333,8 +1405,6 @@ namespace Microsoft.Build.Construction
             // parts of the entry name string. This could lead to ambiguous results if we tried to parse 
             // the entry name instead of constructing it and looking it up. Although it's pretty unlikely that
             // this would ever be a problem, it's safer to do it the same way VS IDE does it.
-            char[] configPlatformSeparators = { SolutionConfigurationInSolution.ConfigurationPlatformSeparator };
-
             foreach (ProjectInSolution project in _projectsInOrder)
             {
                 // Solution folders don't have configurations
@@ -1357,7 +1427,7 @@ namespace Microsoft.Build.Construction
 
                         if (rawProjectConfigurationsEntries.TryGetValue(entryNameActiveConfig, out string configurationPlatform))
                         {
-                            string[] configurationPlatformParts = configurationPlatform.Split(configPlatformSeparators);
+                            string[] configurationPlatformParts = configurationPlatform.Split(SolutionConfigurationInSolution.ConfigurationPlatformSeparatorArray);
 
                             // Project configuration may not necessarily contain the platform part. Some project support only the configuration part.
                             ProjectFileErrorUtilities.VerifyThrowInvalidProjectFile(configurationPlatformParts.Length <= 2, "SubCategoryForSolutionParsingErrors",

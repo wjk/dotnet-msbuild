@@ -1,6 +1,17 @@
 {
+  "tools": {
+    "dotnet": "3.1.100",
+    "runtimes": {
+      "dotnet/x64": [
+        "2.1.7"
+      ]
+    },
+    "vs": {
+      "version": "16.0"
+    }
+  },
   "msbuild-sdks": {
     "Microsoft.Build.CentralPackageVersions": "2.0.1",
-    "RoslynTools.RepoToolset": "1.0.0-beta2-62901-01"
+    "Microsoft.DotNet.Arcade.Sdk": "1.0.0-beta.19616.5"
   }
 }

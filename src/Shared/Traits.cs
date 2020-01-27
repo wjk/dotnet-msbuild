@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -46,6 +46,8 @@ namespace Microsoft.Build.Utilities
         /// Eliminate locking in OpportunisticIntern at the expense of memory
         /// </summary>
         public readonly bool UseSimpleInternConcurrency = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MsBuildUseSimpleInternConcurrency"));
+
+        public readonly bool UseSimpleProjectRootElementCacheConcurrency = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MsBuildUseSimpleProjectRootElementCacheConcurrency"));
 
         /// <summary>
         /// Cache wildcard expansions for the entire process
@@ -97,7 +99,47 @@ namespace Microsoft.Build.Utilities
         /// </summary>
         public readonly bool AlwaysUseContentTimestamp = Environment.GetEnvironmentVariable("MSBUILDALWAYSCHECKCONTENTTIMESTAMP") == "1";
 
-        public readonly bool LogProjectImports = Environment.GetEnvironmentVariable("MSBUILDLOGIMPORTS") == "1";
+        /// <summary>
+        /// Emit events for project imports.
+        /// </summary>
+        private bool? _logProjectImports;
+
+        /// <summary>
+        /// Emit events for project imports.
+        /// </summary>
+        public bool LogProjectImports
+        {
+            get
+            {
+                // Cache the first time
+                if (_logProjectImports == null)
+                {
+                    _logProjectImports = !String.IsNullOrEmpty(Environment.GetEnvironmentVariable("MSBUILDLOGIMPORTS"));
+                }
+                return _logProjectImports.Value;
+            }
+            set
+            {
+                _logProjectImports = value;
+            }
+        }
+
+        private bool? _logTaskInputs;
+        public bool LogTaskInputs
+        {
+            get
+            {
+                if (_logTaskInputs == null)
+                {
+                    _logTaskInputs = Environment.GetEnvironmentVariable("MSBUILDLOGTASKINPUTS") == "1";
+                }
+                return _logTaskInputs.Value;
+            }
+            set
+            {
+                _logTaskInputs = value;
+            }
+        }
 
         /// <summary>
         /// Read information only once per file per ResolveAssemblyReference invocation.
@@ -140,6 +182,11 @@ namespace Microsoft.Build.Utilities
         public readonly bool UseCaseSensitiveItemNames = Environment.GetEnvironmentVariable("MSBUILDUSECASESENSITIVEITEMNAMES") == "1";
 
         /// <summary>
+        /// Disable the use of paths longer than Windows MAX_PATH limits (260 characters) when running on a long path enabled OS.
+        /// </summary>
+        public readonly bool DisableLongPaths = Environment.GetEnvironmentVariable("MSBUILDDISABLELONGPATHS") == "1";
+
+        /// <summary>
         /// Disable the use of any caching when resolving SDKs.
         /// </summary>
         public readonly bool DisableSdkResolutionCache = Environment.GetEnvironmentVariable("MSBUILDDISABLESDKCACHE") == "1";
@@ -158,6 +205,14 @@ namespace Microsoft.Build.Utilities
         /// Workaround for https://github.com/Microsoft/vstest/issues/1503.
         /// </summary>
         public readonly bool EnsureStdOutForChildNodesIsPrimaryStdout = Environment.GetEnvironmentVariable("MSBUILDENSURESTDOUTFORTASKPROCESSES") == "1";
+
+        /// <summary>
+        /// Use the original, string-only resx parsing in .NET Core scenarios.
+        /// </summary>
+        /// <remarks>
+        /// Escape hatch for problems arising from https://github.com/microsoft/msbuild/pull/4420.
+        /// </remarks>
+        public readonly bool UseMinimalResxParsingInCoreScenarios = Environment.GetEnvironmentVariable("MSBUILDUSEMINIMALRESX") == "1";
 
         private static bool? ParseNullableBoolFromEnvironmentVariable(string environmentVariable)
         {

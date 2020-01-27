@@ -273,7 +273,8 @@ namespace Microsoft.Build.BackEnd
                         BuildEngine.ContinueOnError,
                         _taskType.Type.FullName,
                         AssemblyUtilities.GetAssemblyLocation(_taskType.Type.GetTypeInfo().Assembly),
-                        _setParameters
+                        _setParameters,
+                        new Dictionary<string, string>(_buildComponentHost.BuildParameters.GlobalProperties)
                     );
 
             try
@@ -358,7 +359,7 @@ namespace Microsoft.Build.BackEnd
         /// <param name="nodeId">The node from which the packet was received.</param>
         /// <param name="packetType">The packet type.</param>
         /// <param name="translator">The translator containing the data from which the packet should be reconstructed.</param>
-        public void DeserializeAndRoutePacket(int nodeId, NodePacketType packetType, INodePacketTranslator translator)
+        public void DeserializeAndRoutePacket(int nodeId, NodePacketType packetType, ITranslator translator)
         {
             _packetFactory.DeserializeAndRoutePacket(nodeId, packetType, translator);
         }

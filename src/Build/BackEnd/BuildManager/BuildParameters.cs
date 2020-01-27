@@ -24,7 +24,7 @@ namespace Microsoft.Build.Execution
     /// <summary>
     /// This class represents all of the settings which must be specified to start a build.
     /// </summary>
-    public class BuildParameters : INodePacketTranslatable
+    public class BuildParameters : ITranslatable
     {
         /// <summary>
         /// The default thread stack size for threads owned by MSBuild.
@@ -211,6 +211,10 @@ namespace Microsoft.Build.Execution
 
         private bool _isolateProjects;
 
+        private string[] _inputResultsCacheFiles;
+
+        private string _outputResultsCacheFile;
+
         /// <summary>
         /// Constructor for those who intend to set all properties themselves.
         /// </summary>
@@ -240,9 +244,9 @@ namespace Microsoft.Build.Execution
         /// <summary>
         /// Private constructor for translation
         /// </summary>
-        private BuildParameters(INodePacketTranslator translator)
+        private BuildParameters(ITranslator translator)
         {
-            ((INodePacketTranslatable)this).Translate(translator);
+            ((ITranslatable)this).Translate(translator);
         }
 
         /// <summary>
@@ -289,6 +293,9 @@ namespace Microsoft.Build.Execution
             _projectLoadSettings = other._projectLoadSettings;
             _interactive = other._interactive;
             _isolateProjects = other._isolateProjects;
+            _inputResultsCacheFiles = other._inputResultsCacheFiles;
+            _outputResultsCacheFile = other._outputResultsCacheFile;
+            DiscardBuildResults = other.DiscardBuildResults;
         }
 
 #if FEATURE_THREAD_PRIORITY
@@ -452,9 +459,9 @@ namespace Microsoft.Build.Execution
         /// Enables or disables legacy threading semantics
         /// </summary>
         /// <remarks>
-        /// Legacy threading semantics indicate that if a submission is to be built  
+        /// Legacy threading semantics indicate that if a submission is to be built
         /// only on the in-proc node and the submission is executed synchronously, then all of its
-        /// requests will be built on the thread which invoked the build rather than a 
+        /// requests will be built on the thread which invoked the build rather than a
         /// thread owned by the BuildManager.
         /// </remarks>
         public bool LegacyThreadingSemantics { get; set; }
@@ -522,7 +529,7 @@ namespace Microsoft.Build.Execution
         }
 
         /// <summary>
-        /// A list of warnings to treat as errors.  To treat all warnings as errors, set this to an empty <see cref="HashSet{String}"/>.  
+        /// A list of warnings to treat as errors.  To treat all warnings as errors, set this to an empty <see cref="HashSet{String}"/>.
         /// </summary>
         public ISet<string> WarningsAsErrors { get; set; }
 
@@ -540,7 +547,7 @@ namespace Microsoft.Build.Execution
         /// Returns all of the toolsets.
         /// </summary>
         /// <comments>
-        /// toolsetProvider.Toolsets is already a readonly collection. 
+        /// toolsetProvider.Toolsets is already a readonly collection.
         /// </comments>
         public ICollection<Toolset> Toolsets => _toolsetProvider.Toolsets;
 
@@ -560,7 +567,7 @@ namespace Microsoft.Build.Execution
         public bool SaveOperatingEnvironment { get; set; } = true;
 
         /// <summary>
-        /// Shutdown the inprocess node when the build finishes. By default this is false 
+        /// Shutdown the inprocess node when the build finishes. By default this is false
         /// since visual studio needs to keep the inprocess node around after the build finishes.
         /// </summary>
         public bool ShutdownInProcNodeOnBuildFinish
@@ -698,7 +705,7 @@ namespace Microsoft.Build.Execution
         /// <summary>
         /// The one and only project root element cache to be used for the build.
         /// </summary>
-        internal ProjectRootElementCache ProjectRootElementCache { get; set; }
+        internal ProjectRootElementCacheBase ProjectRootElementCache { get; set; }
 
 #if FEATURE_APPDOMAIN
         /// <summary>
@@ -738,6 +745,31 @@ namespace Microsoft.Build.Execution
         }
 
         /// <summary>
+        /// Input cache files that MSBuild will use to read build results from.
+        /// Setting this also turns on isolated builds.
+        /// </summary>
+        public string[] InputResultsCacheFiles
+        {
+            get => _inputResultsCacheFiles;
+            set => _inputResultsCacheFiles = value;
+        }
+
+        /// <summary>
+        /// Output cache file where MSBuild will write the contents of its build result caches during EndBuild.
+        /// Setting this also turns on isolated builds.
+        /// </summary>
+        public string OutputResultsCacheFile
+        {
+            get => _outputResultsCacheFile;
+            set => _outputResultsCacheFile = value;
+        }
+
+        /// <summary>
+        /// Determines whether MSBuild will save the results of builds after EndBuild to speed up future builds.
+        /// </summary>
+        public bool DiscardBuildResults { get; set; } = false;
+
+        /// <summary>
         /// Retrieves a toolset.
         /// </summary>
         public Toolset GetToolset(string toolsVersion)
@@ -755,10 +787,18 @@ namespace Microsoft.Build.Execution
             return new BuildParameters(this);
         }
 
+        internal bool UsesCachedResults() => UsesInputCaches() || UsesOutputCache();
+
+        internal bool UsesOutputCache() => OutputResultsCacheFile != null;
+
+        internal bool UsesInputCaches() => InputResultsCacheFiles != null;
+
+        internal bool SkippedResultsDoNotCauseCacheMiss() => IsolateProjects;
+
         /// <summary>
         /// Implementation of the serialization mechanism.
         /// </summary>
-        void INodePacketTranslatable.Translate(INodePacketTranslator translator)
+        void ITranslatable.Translate(ITranslator translator)
         {
             translator.Translate(ref _buildId);
             /* No build thread priority during translation.  We specifically use the default (which is ThreadPriority.Normal) */
@@ -791,6 +831,8 @@ namespace Microsoft.Build.Execution
             // ProjectRootElementCache is not transmitted.
             // ResetCaches is not transmitted.
             // LegacyThreadingSemantics is not transmitted.
+            // InputResultsCacheFiles and OutputResultsCacheFile are not transmitted, as they are only used by the BuildManager
+            // DiscardBuildResults is not transmitted.
         }
 
 #region INodePacketTranslatable Members
@@ -798,7 +840,7 @@ namespace Microsoft.Build.Execution
         /// <summary>
         /// The class factory for deserialization.
         /// </summary>
-        internal static BuildParameters FactoryForDeserialization(INodePacketTranslator translator)
+        internal static BuildParameters FactoryForDeserialization(ITranslator translator)
         {
             return new BuildParameters(translator);
         }
@@ -842,7 +884,7 @@ namespace Microsoft.Build.Execution
         /// <summary>
         /// Centralization of the common parts of construction.
         /// </summary>
-        private void Initialize(PropertyDictionary<ProjectPropertyInstance> environmentProperties, ProjectRootElementCache projectRootElementCache, ToolsetProvider toolsetProvider)
+        private void Initialize(PropertyDictionary<ProjectPropertyInstance> environmentProperties, ProjectRootElementCacheBase projectRootElementCache, ToolsetProvider toolsetProvider)
         {
             _buildProcessEnvironment = CommunicationsUtilities.GetEnvironmentVariables();
             _environmentProperties = environmentProperties;
@@ -896,7 +938,7 @@ namespace Microsoft.Build.Execution
         /// <summary>
         /// Helper to avoid doing an expensive disk check for MSBuild.exe when
         /// we already checked in a previous build.
-        /// This File.Exists otherwise can show up in profiles when there's a lot of 
+        /// This File.Exists otherwise can show up in profiles when there's a lot of
         /// design time builds going on.
         /// </summary>
         private static bool CheckMSBuildExeExistsAt(string path)

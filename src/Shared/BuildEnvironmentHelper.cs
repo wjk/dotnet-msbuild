@@ -126,7 +126,7 @@ namespace Microsoft.Build.Shared
 
             return msBuildExePath == null
                 ? null
-                : TryFromMSBuildAssemblyUnderVisualStudio(msBuildExePath, msBuildExePath) ?? TryFromStandaloneMSBuildExe(msBuildExePath);
+                : TryFromMSBuildAssemblyUnderVisualStudio(msBuildExePath, msBuildExePath, true) ?? TryFromStandaloneMSBuildExe(msBuildExePath);
         }
 
         private static BuildEnvironment TryFromVisualStudioProcess()
@@ -210,10 +210,14 @@ namespace Microsoft.Build.Shared
 
         }
 
-        private static BuildEnvironment TryFromMSBuildAssemblyUnderVisualStudio(string msbuildAssembly, string msbuildExe)
+        private static BuildEnvironment TryFromMSBuildAssemblyUnderVisualStudio(string msbuildAssembly, string msbuildExe, bool allowLegacyToolsVersion = false)
         {
+            string msBuildPathPattern = allowLegacyToolsVersion
+                ? $@".*\\MSBuild\\({CurrentToolsVersion}|\d+\.0)\\Bin\\.*"
+                : $@".*\\MSBuild\\{CurrentToolsVersion}\\Bin\\.*";
+
             if (NativeMethodsShared.IsWindows &&
-                Regex.IsMatch(msbuildAssembly, $@".*\\MSBuild\\{CurrentToolsVersion}\\Bin\\.*", RegexOptions.IgnoreCase))
+                Regex.IsMatch(msbuildAssembly, msBuildPathPattern, RegexOptions.IgnoreCase))
             {
                 // In a Visual Studio path we must have MSBuild.exe
                 if (FileSystems.Default.FileExists(msbuildExe))
@@ -318,7 +322,7 @@ namespace Microsoft.Build.Shared
         private static string GetVsRootFromMSBuildAssembly(string msBuildAssembly)
         {
             return FileUtilities.GetFolderAbove(msBuildAssembly,
-                Regex.IsMatch(msBuildAssembly, $@".\\MSBuild\\{CurrentToolsVersion}\\Bin\\Amd64\\MSBuild\.exe", RegexOptions.IgnoreCase)
+                Regex.IsMatch(msBuildAssembly, $@"\\Bin\\Amd64\\MSBuild\.exe", RegexOptions.IgnoreCase)
                     ? 5
                     : 4);
         }
@@ -379,6 +383,13 @@ namespace Microsoft.Build.Shared
         private static string GetProcessFromRunningProcess()
         {
 #if RUNTIME_TYPE_NETCORE
+            // The EntryAssembly property can return null when a managed assembly has been loaded from
+            // an unmanaged application (for example, using custom CLR hosting).
+            if (AssemblyUtilities.EntryAssembly == null)
+            {
+                return Process.GetCurrentProcess().MainModule.FileName;
+            }
+
             return AssemblyUtilities.GetAssemblyLocation(AssemblyUtilities.EntryAssembly);
 #else
             return Process.GetCurrentProcess().MainModule.FileName;

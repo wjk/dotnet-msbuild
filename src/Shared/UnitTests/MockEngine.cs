@@ -10,6 +10,8 @@ using Microsoft.Build.Evaluation;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Logging;
+
+using Shouldly;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -29,7 +31,7 @@ namespace Microsoft.Build.UnitTests
      * is somewhat of a no-no for task assemblies.
      * 
      **************************************************************************/
-    internal sealed class MockEngine : IBuildEngine5
+    internal sealed class MockEngine : IBuildEngine6
     {
         private readonly object _lockObj = new object();  // Protects _log, _output
         private readonly ITestOutputHelper _output;
@@ -37,6 +39,7 @@ namespace Microsoft.Build.UnitTests
         private readonly ProjectCollection _projectCollection = new ProjectCollection();
         private readonly bool _logToConsole;
         private readonly ConcurrentDictionary<object, object> _objectCache = new ConcurrentDictionary<object, object>();
+        private readonly ConcurrentQueue<BuildErrorEventArgs> _errorEvents = new ConcurrentQueue<BuildErrorEventArgs>();
 
         internal MockEngine() : this(false)
         {
@@ -47,6 +50,10 @@ namespace Microsoft.Build.UnitTests
         internal int Warnings { get; set; }
 
         internal int Errors { get; set; }
+
+        public BuildErrorEventArgs[] ErrorEvents => _errorEvents.ToArray();
+
+        public Dictionary<string, string> GlobalProperties { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         internal MockLogger MockLogger { get; }
 
@@ -65,6 +72,8 @@ namespace Microsoft.Build.UnitTests
 
         public void LogErrorEvent(BuildErrorEventArgs eventArgs)
         {
+            _errorEvents.Enqueue(eventArgs);
+
             string message = string.Empty;
 
             if (!string.IsNullOrEmpty(eventArgs.File))
@@ -162,6 +171,11 @@ namespace Microsoft.Build.UnitTests
                 _output?.WriteLine(message);
                 _log.AppendLine(message);
             }
+        }
+
+        public IReadOnlyDictionary<string, string> GetGlobalProperties()
+        {
+            return GlobalProperties;
         }
 
         public bool ContinueOnError => false;
@@ -441,7 +455,7 @@ namespace Microsoft.Build.UnitTests
                 _output.WriteLine(logText);
             }
 
-            Assert.Equal(-1, logText.IndexOf(contains, StringComparison.OrdinalIgnoreCase));
+            logText.ShouldNotContain(contains, Case.Insensitive);
 
             // If we do not contain this string than pass it to
             // MockLogger. Since MockLogger is also registered as
